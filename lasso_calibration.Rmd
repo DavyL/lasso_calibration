@@ -27,6 +27,8 @@ Groups of students are asked to send an `R markdown` report generated via `R stu
 ```{r, message=FALSE}
 library(knitr)
 library(rmarkdown)
+
+library(glmnet)
 ```
 
 This report should answer the questions by commentaries and codes generating appropriate graphical outputs. [A cheat sheet of the  markdown syntax can be found here.](https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet)
@@ -39,7 +41,7 @@ with $Y$ a vector in $\mathbb{R}^n$, and $\beta^*$ a vector in $\mathbb{R}^p$ wi
 
 # Simulation of observations
 
-```{r, message=FALSE,fig.show="hide",eval=F}  
+```{r, message=FALSE,fig.show="true",eval=T}  
 n       = 100
 p       = 10
 p0      = 5
@@ -60,7 +62,7 @@ In practice, model parameters are estimated using the $\texttt{glmnet}$ $\texttt
 $$\widehat{\beta}_{\lambda} = \min_{\beta_0,\beta} \frac{1}{N} \sum_{i=1}^{N} w_i l(y_i,\beta_0+\beta^T x_i) + \lambda\left[(1-\alpha)||\beta||_2^2/2 + \alpha ||\beta||_1\right],$$
 with $\alpha=1$ for the Lasso, $\alpha=0$ for Ridge Regression and $\alpha \in ]0,1[$ for Elastic Net. In a first step you are invited to check the online documentation of the package that is very complete. Then the purpose of calibration is to determine the value of the hyperparameter $\lambda$ based on the observations.
 
-```{r, message=FALSE,fig.show="hide",eval=F}  
+```{r, message=FALSE,fig.show="true",eval=F}  
 library(glmnet)
 n       = 100
 p       = 10
@@ -83,7 +85,7 @@ coef(fit)
 
 Parameter $\lambda$ is chosen by cross validation using \texttt{cv.glmnet} such that:
 
-```{r, message=FALSE,eval=F}
+```{r, message=TRUE,eval=F}
 library(glmnet)
 n       = 100
 p       = 10
@@ -116,17 +118,19 @@ The performance of the lasso depends on different factors, and numerical simulat
 
 As an indicator of performance, we will study only the dimension of the selected model, ie $\hat{s} = \sum_{j=1}^p 1_{\hat{\beta}_j \neq 0}$. In order to conduct your simulations, you will start from the following example code: 
 
-```{r, message=FALSE,fig.show="hide",eval=F}  
+```{r, message=TRUE,fig.show="true",eval=T}  
 n      = 100
 p      = 10
-p0     = 5
+p0     = 5  #Number of nonzero coefficients
 sigma  = 1
 sigmaX = 1
 b0     = 1
 beta0  = c(rep(b0,p0),rep(0,p-p0))       
-B      = 10
-res    = matrix(NA,ncol=4,nrow=B)
+B      = 200 #Number of simulations
+res    = matrix(NA,ncol=5,nrow=B) #Stores n,p, sigma, number of nonzero 
+                  #coefficients recovered, number of nz incorrectly identified
 
+betah  = matrix(NA, ncol = p, nrow = B)
 
 # fixed design setting
 X = sapply(1:p, FUN=function(x){rnorm(n,0,sigmaX)})
@@ -135,10 +139,39 @@ for (b in 1:B){
   Y     = X%*%beta0 + rnorm(n,0,sigma)
   # estimate betah using the calibrated lasso
   # betah = 
-  res[b,] = c(n, p, sigma, sum(betah!=0))
+  lambda.cv = cv.glmnet(X,Y, family = "gaussian",intercept=F)$lambda.1se
+  temp = glmnet(X,Y,family = "gaussian",intercept=F, lambda=lambda.cv)$beta  
+  ##the value returned by glmnet(...)$beta is a sparse matrix
+  #In a sparse matrix : @i (non zero indices); @x non zero values
+
+  indices_identified = c(rep(0, p)) #Fill indices_identified with 1 at 
+                                    #indices in temp@i, set others to 0
+  for (index in temp@i) {
+    indices_identified[index] = 1
+  }
+  
+  betah[b,]  = c(temp@i, rep(NA, p-length(temp@i))) #We store in betah[b,]
+    #the nonzero indices and we fill with NA to get a vector of the proper size
+  res[b,] = c(n, p, sigma, length(temp@i), sum(abs(indices_identified - beta0)))
 }
 res           = as.data.frame(res)
-colnames(res) = c("n","p","sigma","sh")
+colnames(res) = c("n","p","sigma","nz", "nzcorrect")
+
+
+hist1<-hist(res$nz, breaks = 1:10, axes = FALSE, 
+            xlab="Number of non-zero coefs in beta", 
+            main = "Number of coefficients identified")
+axis(side=1,at=hist1$mids,labels=1:9) #So that breakpoints are centered
+axis(side=2)          #Because of previous trick, we had to hide both axis, 
+                      #so we display again the Y-axis
+
+
+hist2 <- hist(res$nzcorrect, breaks = 0:10, axes = FALSE, 
+              xlab="Number of incorrect coefs in beta", 
+              main = "Number of coefficients incorrectly identified")
+axis(side=1,at=hist2$mids,labels=0:9)
+axis(side=2)
+
 
 ```
 
