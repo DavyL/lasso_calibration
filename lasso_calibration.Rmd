@@ -1,0 +1,151 @@
+---
+title: "Numerical Calibration of the Lasso"
+author: "ENS Advanced Math, Non parametrics"
+date: "Franck Picard, Fall 2020"
+fontsize: 11pt
+lang: en
+geometry: left=1.45in,top=1.35in,right=1.45in,bottom=1.35in
+classoption: a4paper
+linkcolor: red
+urlcolor: blue
+citecolor: green
+output:
+  pdf_document:
+    number_sections: true
+latex_engine: xelatex 
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
+```
+
+# Preliminaries {-}
+
+Groups of students are asked to send an `R markdown` report generated via `R studio` to <franck.picard@ens-lyon.fr> at the end of the tutorial. You will need `Rstudio`, \LaTeX\ and packages for markdown: 
+
+```{r, message=FALSE}
+library(knitr)
+library(rmarkdown)
+```
+
+This report should answer the questions by commentaries and codes generating appropriate graphical outputs. [A cheat sheet of the  markdown syntax can be found here.](https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet)
+
+# Regression model
+
+This project aims at studying the empirical properties of the LASSO based on simulated data. The statistical framework is the linear regression model, such that
+$$Y_i = x_i^T \beta^* +\varepsilon_i, \,\, \varepsilon_i \sim \mathcal{N}(0,\sigma^2),$$
+with $Y$ a vector in $\mathbb{R}^n$, and $\beta^*$ a vector in $\mathbb{R}^p$ with $p_0$ non-null elements. In the following $J_0=\{j \in \{1,...,p\}, \beta_j^* \neq 0\}$. For simplification, we will consider that there is only one distinct non null value in $\beta^*$: $\beta^* = \beta_0^* \times (1,...,1,0,...0)$. 
+
+# Simulation of observations
+
+```{r, message=FALSE,fig.show="hide",eval=F}  
+n       = 100
+p       = 10
+p0      = 5
+sigma   = 1
+sigmaX  = 1
+b0      = 1
+beta0   = c(rep(b0,p0),rep(0,p-p0))
+X       = sapply(1:p, FUN=function(x){rnorm(n,0,sigmaX)})
+Y       = X%*%beta0 + rnorm(n,0,sigma)
+
+plot(Y,X%*%beta0)
+
+```
+
+# Lasso and the $\texttt{glmnet}$ $\texttt{R}$-package 
+
+In practice, model parameters are estimated using the $\texttt{glmnet}$ $\texttt{R}$-package to compute the lasso estimator 
+$$\widehat{\beta}_{\lambda} = \min_{\beta_0,\beta} \frac{1}{N} \sum_{i=1}^{N} w_i l(y_i,\beta_0+\beta^T x_i) + \lambda\left[(1-\alpha)||\beta||_2^2/2 + \alpha ||\beta||_1\right],$$
+with $\alpha=1$ for the Lasso, $\alpha=0$ for Ridge Regression and $\alpha \in ]0,1[$ for Elastic Net. In a first step you are invited to check the online documentation of the package that is very complete. Then the purpose of calibration is to determine the value of the hyperparameter $\lambda$ based on the observations.
+
+```{r, message=FALSE,fig.show="hide",eval=F}  
+library(glmnet)
+n       = 100
+p       = 10
+p0      = 5
+sigma   = 1
+sigmaX  = 1
+b0      = 1
+beta0   = c(rep(b0,p0),rep(0,p-p0))
+X       = sapply(1:p, FUN=function(x){rnorm(n,0,sigmaX)})
+Y       = X%*%beta0 + rnorm(n,0,sigma)
+
+fit = glmnet(X, Y)
+plot(fit,label=TRUE)
+names(fit)
+print(fit)
+coef(fit)
+```
+ 
+# Numerical Calibration in practice
+
+Parameter $\lambda$ is chosen by cross validation using \texttt{cv.glmnet} such that:
+
+```{r, message=FALSE,eval=F}
+library(glmnet)
+n       = 100
+p       = 10
+p0      = 5
+sigma   = 1
+sigmaX  = 1
+b0      = 1
+beta0   = c(rep(b0,p0),rep(0,p-p0))
+X       = sapply(1:p, FUN=function(x){rnorm(n,0,sigmaX)})
+Y       = X%*%beta0 + rnorm(n,0,sigma)
+
+lambda.cv = cv.glmnet(X,Y, family = "gaussian",intercept=F)$lambda.1se
+bh        = glmnet(X,Y,family = "gaussian",intercept=F, 
+                   lambda=lambda.cv)$beta
+if ( sum(abs(bh))==0 ) {bh = rep(0,p)}
+bh        = as.vector(bh)
+
+```
+
+The first part of your projet will be to re-implement the cross validation procedure, and to verify that your implementation is correct based on the \texttt{cv.glmnet} function that will be used to check your results. You will also implement the calibration of $\lambda$ based on the AIC and on the BIC.
+
+# Simulations setting
+
+The performance of the lasso depends on different factors, and numerical simulations are used to study the impact of these factors on the capacity of the lasso to select the dimension of the model. Among those factors, we can identify $n$ (number of observations), $p$ (dimensionality), $p_0$ and $\beta^*$ (strength of the signal), $\sigma$ (strength of noise).  Studying the impact of all factors would not be realistic, so we focus on:
+
+- $n/p$ will be chosen so that we study the "low-dimensional regime" as well as the "high-dimensional regime".
+- $p_0$ will be fixed at 5
+- $\beta_0^*=1$ 
+- $\sigma$ will vary.
+
+As an indicator of performance, we will study only the dimension of the selected model, ie $\hat{s} = \sum_{j=1}^p 1_{\hat{\beta}_j \neq 0}$. In order to conduct your simulations, you will start from the following example code: 
+
+```{r, message=FALSE,fig.show="hide",eval=F}  
+n      = 100
+p      = 10
+p0     = 5
+sigma  = 1
+sigmaX = 1
+b0     = 1
+beta0  = c(rep(b0,p0),rep(0,p-p0))       
+B      = 10
+res    = matrix(NA,ncol=4,nrow=B)
+
+
+# fixed design setting
+X = sapply(1:p, FUN=function(x){rnorm(n,0,sigmaX)})
+
+for (b in 1:B){
+  Y     = X%*%beta0 + rnorm(n,0,sigma)
+  # estimate betah using the calibrated lasso
+  # betah = 
+  res[b,] = c(n, p, sigma, sum(betah!=0))
+}
+res           = as.data.frame(res)
+colnames(res) = c("n","p","sigma","sh")
+
+```
+
+# Overview of the project
+
+You will first implement the cross validation and the BIC to calibrate the Lasso numerically in the regression setting. Then you will study the statistical properties of the lasso in terms of model selection in different simulation setting (high signal / high noise, low dimensional / high dimensional). You will compete CV, the AIC, and the BIC in order to determine if one procedure is more accurate than the other. 
+
+# Reference
+
+Trevor Hastie, Robert Tibshirani, Jerome Friedman, The Elements of Statistical Learning: Data Mining, Inference, and Prediction. Second Edition, Springer, 2009
