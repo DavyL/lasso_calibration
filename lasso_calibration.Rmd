@@ -175,6 +175,100 @@ axis(side=2)
 
 ```
 
+## AIC
+
+In this section, we implement the Akaike Information Criterion (AIC): $$AIC = 2k - 2ln(\hat{L})$$ where $\hat{L}$ is the maximum value of the likelihood function for the model under consideration.
+The procedure consists of computing the Lasso with parameters $\lambda_1,\cdots,\lambda_N$. 
+```{r}
+likelihood <- function(betal, Yl, sigma2 = 1.0){
+  S<-0.0
+  S <- S + t(Yl-betal)%*%(Yl-betal)
+  n<- length(Yl)
+  
+  return (1/sqrt(2 * pi* sigma2))**(n/2)*exp(-S/(2*sigma2))
+}
+
+
+n      = 200
+p      = 20
+p0     = 5  #Number of nonzero coefficients
+sigma  = 1
+sigmaX = 1
+b0     = 1
+beta0  = c(rep(b0,p0),rep(0,p-p0))       
+betah  = matrix(NA, ncol = p, nrow = B)
+X = sapply(1:p, FUN=function(x){rnorm(n,0,sigmaX)})
+Y     = X%*%beta0 + rnorm(n,0,sigma)
+
+
+
+N <- 500 #Number of lambda tested
+lambda_step <- 0.002 #Difference between two consecutive lambda
+lambda_init <- 0.0 #First value used by lambda
+
+lambda <- lambda_init
+AIC_frame <- data.frame(
+  lambda = c(),
+  betah = c(),
+  k = c(),
+  loglikelihood = c(),
+  AIC = c()
+)
+
+for (b in 1:N){
+  temp = glmnet(X,Y,family = "gaussian",intercept=F, lambda=lambda)$beta  
+  ##the value returned by glmnet(...)$beta is a sparse matrix
+  #In a sparse matrix : @i (non zero indices); @x non zero values
+
+  betah <- c(rep(0,p))
+  j<-0
+  for(i in temp@i){
+    betah[j+1] <- temp@x[j+1]
+    j<-j+1
+  }
+
+  #llik = log(((1/sqrt(2 * pi))**(p/2))*exp(-t(Y-betah)%*%(Y-betah)/(2)))
+  llik = p*log(t(Y-X%*%betah)%*%(Y-X%*%betah)) #Simpler expression for log likelihood in Gaussian case (probably not correct)
+  new_row_df <- data.frame(
+    lambda = lambda,
+    betah = betah,
+    k = j,
+    negloglikelihood = -llik, 
+    AIC = 2*j + 2*llik 
+  )
+  AIC_frame <- rbind(AIC_frame, new_row_df)
+  
+  lambda <- lambda+lambda_step
+
+}
+plot( x = AIC_frame$lambda, y = AIC_frame$AIC)
+
+
+
+```
+
+We then define the best value for $\lambda$ with respect to AIC as:$$\lambda_{AIC} = argmin_{\lambda_i} AIC.$$
+
+Hence, for each $i$ we need to compute the likelihood of the model with parameter $\beta_{\lambda_i}$ and $k$ as the number of nonzero coefficients of $\beta_{\lambda_i}$.
+The likelihood, with Gaussianity assumption and covariance matrix $\sigma I$, is given by $$\hat{L_{\lambda_i}} = \Pi_{i=1}^n \frac{1}{\sqrt{2\pi}\sigma}\exp(-\frac{1}{2\sigma^2}(Y_i-\beta)^t(Y_i-\beta)$$.
+In our setting, we compute $S = \sum_i (Y_i - \beta_\lambda)^2$ and then
+$$L_Y(\lambda) = (2\pi\sigma^2)^{-\frac{n}{2}}\exp(-\frac{1}{2\sigma^2}S)$$
+```{r}
+likelihood <- function(betal, Yl, sigma2 = 1.0){
+
+  S <- t(Yl-betal)%*%(Yl-betal)
+  n<- length(Yl)
+  
+  return (1/sqrt(2 * pi* sigma2))**(n/2)*exp(-S/(2*sigma2))
+}
+
+
+
+```
+
+
+
+
 # Overview of the project
 
 You will first implement the cross validation and the BIC to calibrate the Lasso numerically in the regression setting. Then you will study the statistical properties of the lasso in terms of model selection in different simulation setting (high signal / high noise, low dimensional / high dimensional). You will compete CV, the AIC, and the BIC in order to determine if one procedure is more accurate than the other. 
