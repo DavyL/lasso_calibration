@@ -27,7 +27,8 @@ Groups of students are asked to send an `R markdown` report generated via `R stu
 ```{r, message=FALSE}
 library(knitr)
 library(rmarkdown)
-
+library(graphics) ##Necessary for plots
+library(pracma)
 library(glmnet)
 ```
 
@@ -190,7 +191,7 @@ likelihood <- function(betal, Yl, sigma2 = 1.0){
 
 
 n      = 200
-p      = 20
+p      = 150
 p0     = 5  #Number of nonzero coefficients
 sigma  = 1
 sigmaX = 1
@@ -203,19 +204,20 @@ Y     = X%*%beta0 + rnorm(n,0,sigma)
 
 
 N <- 500 #Number of lambda tested
-lambda_step <- 0.002 #Difference between two consecutive lambda
+lambda_step <- 0.005 #Difference between two consecutive lambda
 lambda_init <- 0.0 #First value used by lambda
 
 lambda <- lambda_init
-AIC_frame <- data.frame(
+results_frame <- data.frame(
   lambda = c(),
   betah = c(),
   k = c(),
   loglikelihood = c(),
-  AIC = c()
+  AIC = c(),
+  BIC = c()
 )
 
-for (b in 1:N){
+for (b in 1:N){#The increment is lambda
   temp = glmnet(X,Y,family = "gaussian",intercept=F, lambda=lambda)$beta  
   ##the value returned by glmnet(...)$beta is a sparse matrix
   #In a sparse matrix : @i (non zero indices); @x non zero values
@@ -223,28 +225,39 @@ for (b in 1:N){
   betah <- c(rep(0,p))
   j<-0
   for(i in temp@i){
-    betah[j+1] <- temp@x[j+1]
+    betah[i+1] <- temp@x[j+1]
     j<-j+1
   }
 
   #llik = log(((1/sqrt(2 * pi))**(p/2))*exp(-t(Y-betah)%*%(Y-betah)/(2)))
-  llik = p*log(t(Y-X%*%betah)%*%(Y-X%*%betah)) #Simpler expression for log likelihood in Gaussian case (probably not correct)
+  RSS = t(Y-X%*%betah)%*%(Y-X%*%betah) #Simpler expression for log likelihood in Gaussian case (probably not correct)
   new_row_df <- data.frame(
     lambda = lambda,
     betah = betah,
     k = j,
-    negloglikelihood = -llik, 
-    AIC = 2*j + 2*llik 
+    negloglikelihood = -log(RSS), 
+    AIC = 2*j + n*log(RSS),
+    BIC = j*log(n) + n*log(RSS/n)
   )
-  AIC_frame <- rbind(AIC_frame, new_row_df)
+  results_frame <- rbind(results_frame, new_row_df)
   
   lambda <- lambda+lambda_step
 
 }
-plot( x = AIC_frame$lambda, y = AIC_frame$AIC)
+lambda_cv = cv.glmnet(X,Y, family = "gaussian",intercept=F)$lambda.1se  #We compute the cross validation solution
+s <- c(rep(lambda_cv, 1000))  #And fill an axis with it
+axis_lambda_cv <- xy.coords(x=s, y = 1:1000)  #that we will give to the plot
+
+plot(x = results_frame$lambda, y = results_frame$AIC, type = "n", xlab = "lambda", ylab = "AIC(theta_lambda)") #type = "n" makes it so that we can add the axis after initialization
+plot.xy(axis_lambda_cv, type = "l") #type = "l" to draw lines
+plot.window(c(0.95*lambda_init, 1.05*lambda ), ylim = c(0.95*min(results_frame$AIC), 1.15*max(results_frame$AIC)))
+plot.xy( list(results_frame$lambda, results_frame$AIC, NULL, NULL), type="p")
 
 
-
+plot(x = results_frame$lambda, y = results_frame$BIC, type = "n", xlab = "lambda", ylab = "BIC(theta_lambda)") #type = "n" makes it so that we can add the axis after initialization
+plot.xy(axis_lambda_cv, type = "l") #type = "l" to draw lines
+plot.window(c(0.95*lambda_init, 1.05*lambda ), ylim = c(0.95*min(results_frame$BIC), 1.15*max(results_frame$BIC)))
+plot.xy( list(results_frame$lambda, results_frame$BIC, NULL, NULL), type="p")
 ```
 
 We then define the best value for $\lambda$ with respect to AIC as:$$\lambda_{AIC} = argmin_{\lambda_i} AIC.$$
@@ -253,16 +266,270 @@ Hence, for each $i$ we need to compute the likelihood of the model with paramete
 The likelihood, with Gaussianity assumption and covariance matrix $\sigma I$, is given by $$\hat{L_{\lambda_i}} = \Pi_{i=1}^n \frac{1}{\sqrt{2\pi}\sigma}\exp(-\frac{1}{2\sigma^2}(Y_i-\beta)^t(Y_i-\beta)$$.
 In our setting, we compute $S = \sum_i (Y_i - \beta_\lambda)^2$ and then
 $$L_Y(\lambda) = (2\pi\sigma^2)^{-\frac{n}{2}}\exp(-\frac{1}{2\sigma^2}S)$$
-```{r}
-likelihood <- function(betal, Yl, sigma2 = 1.0){
+For each instance of $Y = X\theta^* + \epsilon$ for given parameters $p/n$(dimensionality)$ of $k = s*(p/n)$ (sparsity), while the others are fixed; we obtain lambda_AIC, lambda_CV, lambda_BIC,..... the optimal calibration of lasso for a same problem and a given criterion.
 
-  S <- t(Yl-betal)%*%(Yl-betal)
-  n<- length(Yl)
+We want to know given the dimensionality and perhaps the sparsity which criterion is optimal. For each instance of $Y=X\theta^*$ we may define $$\lambda_{opt} = Argmin_{\lambda} || X\theta^* - X\hat{\theta}_{\lambda}||_2$$ the "optimal" value of lambda, in the sense that given the solution $\theta^*$ (unknown in practice), we look for the lambda that would give the model with the smallest error (where the argmin could run through all lambdas or only on the one given by our criterions). Note that the choice of definition of $\lambda_{opt}$ is arbitrary, replacing the norm by an $\ell^1, \ell^\infty,\cdots$ can be justified and the argmin could ignore the dependence on $X$.
+
+Idea : modelling $\lambda_{opt}$ as a function of the dimensionality, the sparsity, the different criterions
+Naive idea: Define the norm in the argmin as some sup norm so that $\\hat{lambda}_{opt}$ is the criterion that gives the lambda of the criterion which is closest from sparsity estimate.
+Improved: A nearest-neighbour
+Improved (bis): Model $\hat{\lambda}_{opt}$ as some linear combination of $p/n, s, \lambda_{AIC}, \lambda_{BIC}, \dots$.
+Improved (ter): Model as a polynomial/log linear of $p/n$ and $s$ (and $\lambda_{AIC}, \lambda_{Bic},\cdots$)
+```{r}
+##We fix p, n and k
+#We run M instances of Y = X\theta + eps
+#Each time we obtain $\lambda_{AIC, CV, opt}$ and we create a list which contains for each possible index (AIC or CV) the number of times it is the closest from lambda_opt
+#We plot the histogram to get an idea if AIC or CV is best in our setup
+#TODO : same thing, but instead pick an index whenever it is the one that gives the $\hat{\beta_\lambda}$ which is closest from $\beta^*$
+n      = 100
+p      = 10
+p0     = 5  #Number of nonzero coefficients
+sigma  = 1
+sigmaX = 1
+b0     = 1
+beta0  = c(rep(b0,p0),rep(0,p-p0))       
+betah  = matrix(NA, ncol = p, nrow = B)
+
+
+B <- 20 #Number of lambda tested
+lambda_step <- 0.1 #Difference between two consecutive lambda
+lambda_init <- 0.0 #First value used by lambda
   
-  return (1/sqrt(2 * pi* sigma2))**(n/2)*exp(-S/(2*sigma2))
+  
+results_short <- data.frame(
+  lambda_AIC =c(),
+  lambda_CV = c(),
+  lambda_opt = c(),
+  best_criterion = c()
+)
+
+N<- 10 ## Number of instances of solving Y=X\theta + ups
+for(t in 1:N){
+  
+  X = sapply(1:p, FUN=function(x){rnorm(n,0,sigmaX)})
+  Y = X%*%beta0 + rnorm(n,0,sigma)
+
+  lambda <- lambda_init
+  results_frame <- data.frame(
+    lambda = c(),
+    betah = c(),
+    k = c(),
+    loglikelihood = c(),
+    AIC = c(),
+    BIC = c()
+  )
+  
+  err_opt <- NA
+  lambda_opt <- 1
+  
+  for (b in 1:B){#The increment is lambda
+    temp = glmnet(X,Y,family = "gaussian",intercept=F, lambda=lambda)$beta  
+    ##the value returned by glmnet(...)$beta is a sparse matrix
+    #In a sparse matrix : @i (non zero indices); @x non zero values
+  
+    betah <- c(rep(0,p))
+    j<-0
+    for(i in temp@i){
+      betah[i+1] <- temp@x[j+1]
+      j<-j+1
+    }
+  
+    #llik = log(((1/sqrt(2 * pi))**(p/2))*exp(-t(Y-betah)%*%(Y-betah)/(2)))
+    RSS = t(Y-X%*%betah)%*%(Y-X%*%betah) #Simpler expression for log likelihood in Gaussian case (probably not correct)
+    new_row_df <- data.frame(
+      lambda = lambda,
+      betah = betah,
+      k = j,
+      negloglikelihood = -log(RSS), 
+      AIC = 2*j + n*log(RSS),
+      BIC = j*log(n) + n*log(RSS/n)
+    )
+    results_frame <- rbind(results_frame, new_row_df)
+    if(err_opt >= Norm(betah - beta0, p=2) || is.na(err_opt)){
+      lambda_opt <- lambda   #Obtaining the lambda which gives the solution closest from the true value
+      err_opt <- Norm(betah - beta0, p = 2)
+    }
+    lambda <- lambda+lambda_step
+  }
+  esc <-1
+  lambda_min_AIC <- results_frame$AIC[0]
+  min_lambda_AIC <- min(results_frame$AIC)
+  i<-1
+  while (esc != 0 || i < B) {
+    if( min_lambda_AIC >= results_frame$AIC[i]){
+      esc = 0
+      lambda_min_AIC <-results_frame$lambda[i]  #Obtaining the optimal value of lambda for AIC (a faster technique to do that probably exists)
+    }
+    i<- i + 1
+  }
+  
+  
+  new_row_short_df <- data.frame(
+    lambda_AIC = lambda_min_AIC,
+    lambda_CV = cv.glmnet(X,Y, family = "gaussian",intercept=F)$lambda.1se,
+    lambda_opt = lambda_opt,
+    best_criterion = NA
+  )
+  if(abs(new_row_short_df$lambda_AIC - new_row_short_df$lambda_opt) > abs(new_row_short_df$lambda_CV - new_row_short_df$lambda_opt)){
+    new_row_short_df$best_criterion = 0 ##0 : best criterion is CV
+  }
+  else{
+    new_row_short_df$best_criterion = 1  ##1: best criterion is AIC
+  }
+  results_short <- rbind(results_short, new_row_short_df)
+  print(t)
+
+}
+hist(results_short$best_criterion, main = "Hist of best criterion between CV (0) and AIC (1)")
+
+
+```
+```{r}
+###We wrap the previous code in a function
+#Then we compute for varying $n/p$ whether best is AIC, BIC or CV
+
+GetLambdaComparison <- function(n = 100,
+                                p      = 10,
+                                p0     = 5,  #Number of nonzero coefficients
+                                sigma  = 1,
+                                sigmaX = 1,
+                                b0     = 1,
+                                B = 20, #Number of lambda tested
+                                N = 10, #Number of instances of solving Y = X\theta + eps
+                                lambda_step = 0.1, #Difference between two consecutive lambda
+                                lambda_init = 0.0 #First value used by lambda
+                                ){
+  
+  beta0  = c(rep(b0,p0),rep(0,p-p0))
+  betah  = matrix(NA, ncol = p, nrow = B)
+    
+  results_short <- data.frame(
+    lambda_AIC =c(),
+    lambda_BIC = c(),
+    lambda_CV = c(),
+    lambda_opt = c(),
+    best_criterion = c()
+  )
+  
+
+  
+  for(t in 1:N){
+    
+    X = sapply(1:p, FUN=function(x){rnorm(n,0,sigmaX)})
+    Y = X%*%beta0 + rnorm(n,0,sigma)
+  
+    lambda <- lambda_init
+    results_frame <- data.frame(
+      lambda = c(),
+      betah = c(),
+      k = c(),
+      loglikelihood = c(),
+      AIC = c(),
+      BIC = c()
+    )
+    
+    err_opt <- NA
+    lambda_opt <- 1
+    min_lambda_AIC <- NA
+    lambda_AIC <- NA
+    min_lambda_BIC <- NA
+    lambda_BIC <- NA
+    for (b in 1:B){#The increment is lambda
+      temp = glmnet(X,Y,family = "gaussian",intercept=F, lambda=lambda)$beta  
+      ##the value returned by glmnet(...)$beta is a sparse matrix
+      #In a sparse matrix : @i (non zero indices); @x non zero values
+    
+      betah <- c(rep(0,p))
+      j<-1
+      for(i in temp@i){
+        betah[i+1] <- temp@x[j]
+        j<-j+1
+      }
+    
+      #llik = log(((1/sqrt(2 * pi))**(p/2))*exp(-t(Y-betah)%*%(Y-betah)/(2)))
+      RSS = t(Y-X%*%betah)%*%(Y-X%*%betah) #Simpler expression for log likelihood in Gaussian case (probably not correct)
+      new_row_df <- data.frame(
+        lambda = lambda,
+        betah = betah,
+        k = j,
+        negloglikelihood = -log(RSS), 
+        AIC = 2*j + n*log(RSS),
+        BIC = j*log(n) + n*log(RSS/n)
+      )
+      results_frame <- rbind(results_frame, new_row_df)
+      
+      ##Before restarting to loop we check for the best value for lambda_opt
+      if(err_opt >= Norm(betah - beta0, p=2) || is.na(err_opt)){
+        lambda_opt <- lambda   #Obtaining the lambda which gives the solution closest from the true value
+        err_opt <- Norm(betah - beta0, p = 2)
+      }
+      
+      #And we also search for the best value for lambda under AIC
+      if(min_lambda_AIC > new_row_df$AIC || is.na(min_lambda_AIC)){
+        min_lambda_AIC <- new_row_df$AIC
+        lambda_AIC <- lambda
+      }
+      #And we also search for the best value for lambda under BIC
+      if(min_lambda_BIC > new_row_df$BIC || is.na(min_lambda_BIC)){
+        min_lambda_BIC <- new_row_df$BIC
+        lambda_BIC <- lambda
+      }
+      lambda <- lambda+lambda_step
+    }
+    
+    new_row_short_df <- data.frame(
+      lambda_AIC = lambda_AIC,
+      lambda_BIC = lambda_BIC,
+      lambda_CV = cv.glmnet(X,Y, family = "gaussian",intercept=F)$lambda.1se,
+      lambda_opt = lambda_opt,
+      best_criterion = NA
+    )
+    
+    ##We check which criterion gives the closest lambda wrt lambda_opt
+    if(min(abs(new_row_short_df$lambda_AIC - new_row_short_df$lambda_opt), abs(new_row_short_df$lambda_BIC - new_row_short_df$lambda_opt)) > abs(new_row_short_df$lambda_CV - new_row_short_df$lambda_opt)){
+      new_row_short_df$best_criterion = 0 ##0 : best criterion is CV
+    }
+    else if(    abs(new_row_short_df$lambda_AIC - new_row_short_df$lambda_opt) 
+                  > abs(new_row_short_df$lambda_BIC - new_row_short_df$lambda_opt) 
+            ){
+      new_row_short_df$best_criterion = 2  ##1: best criterion is BIC
+    }
+    else{
+        new_row_short_df$best_criterion = 1  ##1: best criterion is AIC
+    }
+    results_short <- rbind(results_short, new_row_short_df)
+  }
+  return(results_short)
 }
 
 
+
+n <- 100
+p <- 5 #Things are simpler if n/p is an integer
+prange<- 5:200 
+ratio_best_AIC = c(rep(0,length(prange)))
+ratio_best_BIC = c(rep(0,length(prange)))
+result_var_np = data.frame(
+  p = c(),
+  num_AIC_best = c(),   ##Number of times when AIC is the best
+  num_CV_best = c(),   ##Number of times when CV is best
+  num_BIC_best = c()
+)
+for(s in 1:length(prange)){#The extra parenthesis seem necessary 
+  results_lambda <- GetLambdaComparison(n=100, p = prange[s], B = 20, N= 20)
+  new_row_result_var_np = data.frame(
+    p = prange[s],
+    num_AIC_best = sum(results_lambda$best_criterion == 1),
+    num_CV_best = sum(results_lambda$best_criterion == 0),
+    num_BIC_best = sum(results_lambda$best_criterion == 2)
+  )
+  result_var_np <- rbind(result_var_np, new_row_result_var_np)
+  ratio_best_AIC[s] <- new_row_result_var_np$num_AIC_best / (new_row_result_var_np$num_CV_best + new_row_result_var_np$num_AIC_best + new_row_result_var_np$num_BIC_best)
+  ratio_best_BIC[s] <- new_row_result_var_np$num_BIC_best / (new_row_result_var_np$num_CV_best + new_row_result_var_np$num_AIC_best + new_row_result_var_np$num_BIC_best)
+  print(s)
+}
+plot(ratio_best_AIC, main = "performance of AIC compared to CV", ylab = "Avg number of times when AIC is best", xlab = "p")
+plot(ratio_best_BIC, main = "performance of BIC compared to CV", ylab = "Avg number of times when BIC is best", xlab = "p")
 
 ```
 
