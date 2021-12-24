@@ -30,6 +30,7 @@ library(rmarkdown)
 library(graphics) ##Necessary for plots
 library(pracma)
 library(glmnet)
+library(rgl)
 ```
 
 This report should answer the questions by commentaries and codes generating appropriate graphical outputs. [A cheat sheet of the  markdown syntax can be found here.](https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet)
@@ -506,7 +507,7 @@ GetLambdaComparison <- function(n = 100,
 
 n <- 100
 p <- 5 #Things are simpler if n/p is an integer
-prange<- 5:200 
+prange<- 5:20
 ratio_best_AIC = c(rep(0,length(prange)))
 ratio_best_BIC = c(rep(0,length(prange)))
 result_var_np = data.frame(
@@ -515,7 +516,7 @@ result_var_np = data.frame(
   num_CV_best = c(),   ##Number of times when CV is best
   num_BIC_best = c()
 )
-for(s in 1:length(prange)){#The extra parenthesis seem necessary 
+for(s in 1:length(prange)){
   results_lambda <- GetLambdaComparison(n=100, p = prange[s], B = 20, N= 20)
   new_row_result_var_np = data.frame(
     p = prange[s],
@@ -527,13 +528,87 @@ for(s in 1:length(prange)){#The extra parenthesis seem necessary
   ratio_best_AIC[s] <- new_row_result_var_np$num_AIC_best / (new_row_result_var_np$num_CV_best + new_row_result_var_np$num_AIC_best + new_row_result_var_np$num_BIC_best)
   ratio_best_BIC[s] <- new_row_result_var_np$num_BIC_best / (new_row_result_var_np$num_CV_best + new_row_result_var_np$num_AIC_best + new_row_result_var_np$num_BIC_best)
   print(s)
+  result_var_np <- rbind(result_var_np, new_row_result_var_np)
 }
-plot(ratio_best_AIC, main = "performance of AIC compared to CV", ylab = "Avg number of times when AIC is best", xlab = "p")
-plot(ratio_best_BIC, main = "performance of BIC compared to CV", ylab = "Avg number of times when BIC is best", xlab = "p")
+plot(ratio_best_AIC, main = "performance of AIC compared to others", ylab = "Avg number of times when AIC is best", xlab = "p")
+plot(ratio_best_BIC, main = "performance of BIC compared to others", ylab = "Avg number of times when BIC is best", xlab = "p")
 
 ```
 
+We now plot, depending on n/p and k (the number of nonzero coefficient) the performance of AIC, BIC and CV.
+```{r}
+##We wrap the previous code in a function to get, for fixed n and a fixed sparsity level k/n, the results when we vary p
+#Then we will vary k between some values and then display the results
+CompareCriterionVarNP <- function(
+                                n = 100,
+                                prange      = 5:200, #List of p tested, all p should be larger than p0
+                                p0     = 5,  #Number of nonzero coefficients
+                                sigma  = 1,
+                                sigmaX = 1,
+                                b0     = 1,
+                                B = 30, #Number of lambda tested
+                                N = 10, #Number of instances of solving Y = X\theta + eps
+                                lambda_step = 0.05, #Difference between two consecutive lambda
+                                lambda_init = 0.0 #First value used by lambda
+  
+                                  ){
+  ratio_best_AIC = c(rep(0,length(prange)))
+  ratio_best_BIC = c(rep(0,length(prange)))
+  result_var_np = data.frame(
+    p = c(rep(prange[1], max(prange[1]-1, 0))),
+    num_AIC_best = c(rep(NA, prange[1]-1)),   ##Number of times when AIC is the best
+    num_CV_best = c(rep(NA, prange[1]-1)),   ##Number of times when CV is best
+    num_BIC_best = c(rep(NA, prange[1]-1))
+  )
+  for(s in 1:length(prange)){
+    results_lambda <- GetLambdaComparison(n=100, p = prange[s], B = 20, N= 20, p0 = p0)
+    new_row_result_var_np = data.frame(
+      p = prange[s],
+      num_AIC_best = sum(results_lambda$best_criterion == 1),
+      num_CV_best = sum(results_lambda$best_criterion == 0),
+      num_BIC_best = sum(results_lambda$best_criterion == 2)
+    )
+    result_var_np <- rbind(result_var_np, new_row_result_var_np)
+    ratio_best_AIC[s] <- new_row_result_var_np$num_AIC_best / (new_row_result_var_np$num_CV_best + new_row_result_var_np$num_AIC_best + new_row_result_var_np$num_BIC_best)
+    ratio_best_BIC[s] <- new_row_result_var_np$num_BIC_best / (new_row_result_var_np$num_CV_best + new_row_result_var_np$num_AIC_best + new_row_result_var_np$num_BIC_best)
+    print(s)
+  }
+  return(result_var_np)
+}
 
+n<-10
+results_glob = data.frame(
+  k = c(),
+  comp_criterion = c() 
+)
+krange = 2:20
+maxp<- 60
+for(k in krange){
+  new_row = data.frame(
+    k = k,
+    comp_criterion = CompareCriterionVarNP(n <- 10, prange = k:maxp, p0 = k) 
+  )
+  results_glob <- rbind(results_glob, new_row)
+  print(k)
+}  
+
+```
+
+```{r}
+##Here we do the plotting 
+print(length(results_glob$comp_criterion.num_AIC_best))
+x = krange
+y = 1:maxp
+print(length(x)*length(y))
+z = matrix(data = results_glob$comp_criterion.num_AIC_best, nrow = length(y), ncol = length(x))
+persp3d(x=y, y=x,z=z, ylab = "number of nonzero coefs", xlab = "p", col="skyblue", type = "n")
+z = matrix(data = results_glob$comp_criterion.num_BIC_best, nrow = length(y), ncol = length(x))
+persp3d(x=y, y=x,z=z, ylab = "number of nonzero coefs", xlab = "p", col="red", type = "n", add = TRUE)
+z = matrix(data = results_glob$comp_criterion.num_CV_best, nrow = length(y), ncol = length(x))
+persp3d(x=y, y=x,z=z, ylab = "number of nonzero coefs", xlab = "p",  col="green", add = TRUE)
+rgl.snapshot("comp_all_crits.png")
+
+```
 
 
 # Overview of the project
