@@ -609,6 +609,194 @@ persp3d(x=y, y=x,z=z, ylab = "number of nonzero coefs", xlab = "p",  col="green"
 rgl.snapshot("comp_all_crits.png")
 
 ```
+Now, instead of comparing among criterions which one gives the closest lambda to the best (knowing the true solution) lambda, we want to compare for each criterion which ones give the right model dimension.
+
+```{r}
+GetDimComparison <- function(n = 100,
+                                p      = 10,
+                                p0     = 5,  #Number of nonzero coefficients
+                                sigma  = 1,
+                                sigmaX = 1,
+                                b0     = 1,
+                                B = 20, #Number of lambda tested
+                                N = 10, #Number of instances of solving Y = X\theta + eps
+                                lambda_step = 0.1, #Difference between two consecutive lambda
+                                lambda_init = 0.0 #First value used by lambda
+                                ){
+  
+  beta0  = c(rep(b0,p0),rep(0,p-p0))
+  betah  = matrix(NA, ncol = p, nrow = B)
+    
+  results_dim <- data.frame(
+    AIC_dim =c(),
+    BIC_dim = c(),
+    CV_dim = c(),
+    true_dim = c()
+  )
+  
+
+  
+  for(t in 1:N){
+    
+    X = sapply(1:p, FUN=function(x){rnorm(n,0,sigmaX)})
+    Y = X%*%beta0 + rnorm(n,0,sigma)
+  
+    lambda <- lambda_init
+    results_frame <- data.frame(
+      lambda = c(),
+      betah = c(),
+      k = c(),
+      loglikelihood = c(),
+      AIC = c(),
+      BIC = c()
+    )
+    
+    err_opt <- NA
+    lambda_opt <- 1
+    min_lambda_AIC <- NA
+    lambda_AIC <- NA
+    min_lambda_BIC <- NA
+    lambda_BIC <- NA
+    for (b in 1:B){#The increment is lambda
+      temp = glmnet(X,Y,family = "gaussian",intercept=F, lambda=lambda)$beta  
+      ##the value returned by glmnet(...)$beta is a sparse matrix
+      #In a sparse matrix : @i (non zero indices); @x non zero values
+    
+      betah <- c(rep(0,p))
+      j<-1
+      for(i in temp@i){
+        betah[i+1] <- temp@x[j]
+        j<-j+1
+      }
+    
+      #llik = log(((1/sqrt(2 * pi))**(p/2))*exp(-t(Y-betah)%*%(Y-betah)/(2)))
+      RSS = t(Y-X%*%betah)%*%(Y-X%*%betah) #Simpler expression for log likelihood in Gaussian case (probably not correct)
+      new_row_df <- data.frame(
+        lambda = lambda,
+        betah = betah,
+        k = j,
+        negloglikelihood = -log(RSS), 
+        AIC = 2*j + n*log(RSS),
+        BIC = j*log(n) + n*log(RSS/n)
+      )
+      results_frame <- rbind(results_frame, new_row_df)
+      
+      
+      #We search for the best value for lambda under AIC
+      if(min_lambda_AIC > new_row_df$AIC || is.na(min_lambda_AIC)){
+        min_lambda_AIC <- new_row_df$AIC
+        lambda_AIC <- lambda
+      }
+      #And we also search for the best value for lambda under BIC
+      if(min_lambda_BIC > new_row_df$BIC || is.na(min_lambda_BIC)){
+        min_lambda_BIC <- new_row_df$BIC
+        lambda_BIC <- lambda
+      }
+      lambda <- lambda+lambda_step
+    }
+    lambda_CV = cv.glmnet(X,Y, family = "gaussian",intercept=F)$lambda.1se
+    
+    #We compute for each optimal lambda the corresponding solution beta
+    Beta_AIC = glmnet(X, Y, family = "gaussian", intercept=F, lambda = lambda_AIC)$beta
+    Beta_BIC = glmnet(X, Y, family = "gaussian", intercept=F, lambda = lambda_BIC)$beta
+    Beta_CV = glmnet(X, Y, family = "gaussian", intercept=F, lambda = lambda_CV)$beta
+   
+    #For each beta we compute its dimension
+    new_row_results_dim <- data.frame(
+      AIC_dim = sum(Beta_AIC != 0),
+      BIC_dim = sum(Beta_BIC != 0),
+      CV_dim = sum(Beta_CV != 0),
+      true_dim = p0
+    )
+    results_dim <- rbind(results_dim, new_row_results_dim)
+  }
+  return(results_dim)
+}
+
+
+dim_compare = GetDimComparison(N = 100, p = 10)
+hist(dim_compare$AIC_dim, breaks = 0:100 +0.5, freq = FALSE)
+hist(dim_compare$BIC_dim, breaks =0:100+0.5, freq = FALSE)
+hist(dim_compare$CV_dim, breaks =0:100 +0.5, freq = FALSE)
+
+```
+We obtain from previous plots (with e.g. N=100, p=10 or p =100) that CV is the best criterion to obtain the right model dimension. Also BIC performs better than AIC for dimension identification, however in a high dimensional setting, the performance of BIC is quite low.
+In order to back this claim, we do as before and display for varying $n/p$ the dimension of the models identified by the different criterions.
+
+
+We now plot, depending on n/p and k (the number of nonzero coefficient) the performance (avg model dimension) of AIC, BIC and CV.
+```{r}
+##We wrap the previous code in a function to get, for fixed n and a fixed sparsity level k/n, the results when we vary p
+#Then we will vary k between some values and then display the results
+CompareDimCriterionVarNP <- function(
+                                n = 100,
+                                prange      = 5:200, #List of p tested, all p should be larger than p0
+                                p0     = 5,  #Number of nonzero coefficients
+                                sigma  = 1,
+                                sigmaX = 1,
+                                b0     = 1,
+                                B = 30, #Number of lambda tested
+                                N = 10, #Number of instances of solving Y = X\theta + eps
+                                lambda_step = 0.05, #Difference between two consecutive lambda
+                                lambda_init = 0.0 #First value used by lambda
+                                  ){
+  result_dim_var_np = data.frame(
+    p = c(rep(prange[1], max(prange[1]-1, 0))),
+    dim_AIC = c(rep(NA, prange[1]-1)),   ##Number of times when AIC is the best
+    dim_BIC = c(rep(NA, prange[1]-1)),   ##Number of times when CV is best
+    dim_CV = c(rep(NA, prange[1]-1)),
+    dim_true = c(rep(p0, prange[1] - 1))
+  )
+  for(s in 1:length(prange)){
+    results_dim <- GetDimComparison(n=100, p = prange[s], B = 20, N= 20, p0 = p0)
+    new_row_result_dim_var_np = data.frame(
+      p = prange[s],
+      dim_AIC = sum(results_dim$AIC_dim)/N,
+      dim_BIC = sum(results_dim$BIC_dim)/N,
+      dim_CV = sum(results_dim$CV_dim)/N,
+      dim_true = p0
+    )
+    result_dim_var_np <- rbind(result_dim_var_np, new_row_result_dim_var_np)
+    
+    print(s)
+  }
+  return(result_dim_var_np)
+}
+
+n<-10
+results_dim_glob = data.frame(
+  k = c(),
+  comp_criterion = c() 
+)
+krange = 2:20
+maxp<- 60
+for(k in krange){
+  new_row_dim = data.frame(
+    k = k,
+    comp_criterion = CompareDimCriterionVarNP(n <- 10, prange = k:maxp, p0 = k) 
+  ) 
+  results_dim_glob <- rbind(results_dim_glob, new_row_dim)
+  print(k)
+}  
+```
+
+And we plot the results
+```{r}
+##Here we do the plotting 
+print(length(results_dim_glob$comp_criterion.dim_CV))
+x = krange
+y = 1:maxp
+print(length(x)*length(y))
+z = matrix(data = results_dim_glob$comp_criterion.dim_AIC, nrow = length(y), ncol = length(x))
+persp3d(x=y, y=x,z=z, ylab = "number of nonzero coefs", xlab = "p", col="skyblue", type = "n")
+z = matrix(data = results_dim_glob$comp_criterion.dim_BIC, nrow = length(y), ncol = length(x))
+persp3d(x=y, y=x,z=z, ylab = "number of nonzero coefs", xlab = "p", col="red", type = "n", add = TRUE)
+z = matrix(data = results_dim_glob$comp_criterion.dim_CV, nrow = length(y), ncol = length(x))
+persp3d(x=y, y=x,z=z, ylab = "number of nonzero coefs", xlab = "p",  col="green", add = TRUE)
+z = matrix(data = results_dim_glob$comp_criterion.dim_true, nrow = length(y), ncol = length(x))
+persp3d(x=y, y=x,z=z, ylab = "number of nonzero coefs", xlab = "p",  col="green", add = TRUE)
+rgl.snapshot("comp_all_crits_dim.png")
+```
 
 
 # Overview of the project
