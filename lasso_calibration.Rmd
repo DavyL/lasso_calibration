@@ -571,7 +571,7 @@ CompareCriterionVarNP <- function(
     result_var_np <- rbind(result_var_np, new_row_result_var_np)
     ratio_best_AIC[s] <- new_row_result_var_np$num_AIC_best / (new_row_result_var_np$num_CV_best + new_row_result_var_np$num_AIC_best + new_row_result_var_np$num_BIC_best)
     ratio_best_BIC[s] <- new_row_result_var_np$num_BIC_best / (new_row_result_var_np$num_CV_best + new_row_result_var_np$num_AIC_best + new_row_result_var_np$num_BIC_best)
-    print(s)
+    #print(s)
   }
   return(result_var_np)
 }
@@ -590,7 +590,7 @@ for(k in krange){
   )
   results_glob <- rbind(results_glob, new_row)
   print(k)
-}  
+}
 
 ```
 
@@ -714,7 +714,7 @@ GetDimComparison <- function(n = 100,
 }
 
 
-dim_compare = GetDimComparison(N = 100, p = 10)
+dim_compare = GetDimComparison(N = 100, p = 100, p0 = 4)
 hist(dim_compare$AIC_dim, breaks = 0:100 +0.5, freq = FALSE)
 hist(dim_compare$BIC_dim, breaks =0:100+0.5, freq = FALSE)
 hist(dim_compare$CV_dim, breaks =0:100 +0.5, freq = FALSE)
@@ -742,10 +742,10 @@ CompareDimCriterionVarNP <- function(
                                   ){
   result_dim_var_np = data.frame(
     p = c(rep(prange[1], max(prange[1]-1, 0))),
-    dim_AIC = c(rep(NA, prange[1]-1)),   ##Number of times when AIC is the best
-    dim_BIC = c(rep(NA, prange[1]-1)),   ##Number of times when CV is best
-    dim_CV = c(rep(NA, prange[1]-1)),
-    dim_true = c(rep(p0, prange[1] - 1))
+    dim_AIC = c(rep(NA, prange[1]-1)),   ##Average dimesnsion of AIC
+    dim_BIC = c(rep(NA, prange[1]-1)),   ##of BIC
+    dim_CV = c(rep(NA, prange[1]-1)),    ##of CV
+    dim_true = c(rep(NA, prange[1] - 1))
   )
   for(s in 1:length(prange)){
     results_dim <- GetDimComparison(n=100, p = prange[s], B = 20, N= 20, p0 = p0)
@@ -758,7 +758,7 @@ CompareDimCriterionVarNP <- function(
     )
     result_dim_var_np <- rbind(result_dim_var_np, new_row_result_dim_var_np)
     
-    print(s)
+    #print(s)
   }
   return(result_dim_var_np)
 }
@@ -796,6 +796,79 @@ persp3d(x=y, y=x,z=z, ylab = "number of nonzero coefs", xlab = "p",  col="green"
 z = matrix(data = results_dim_glob$comp_criterion.dim_true, nrow = length(y), ncol = length(x))
 persp3d(x=y, y=x,z=z, ylab = "number of nonzero coefs", xlab = "p",  col="green", add = TRUE)
 rgl.snapshot("comp_all_crits_dim.png")
+```
+#Influence of noise
+
+We are now left with having to measure the influence of the noise. In order to do that we will plot graphs of dimensionality identified (or distance w.r.t true $\lambda$) where the parameters are $(\sigma, n/p)$ or $(\sigma, k)$.
+#Dimensionality
+We compute dimension of the estimated model w.r.t to criterions for varying $sigma$ and $k$
+```{r}
+CompareDimCriterionVarSigma <- function(
+                                n = 100,
+                                p = 10,
+                                sigmarange      = (0:20)/10, #List of sigma tested
+                                p0     = 5,  #Number of nonzero coefficients
+                                sigma  = 1,
+                                sigmaX = 1,
+                                b0     = 1,
+                                B = 30, #Number of lambda tested
+                                N = 10, #Number of instances of solving Y = X\theta + eps
+                                lambda_step = 0.05, #Difference between two consecutive lambda
+                                lambda_init = 0.0 #First value used by lambda
+                                  ){
+  result_dim_var_sigma = data.frame(
+    p = c(rep(prange[1], max(prange[1]-1, 0))),
+    dim_AIC = c(rep(NA, prange[1]-1)),   ##Average dimesnsion of AIC
+    dim_BIC = c(rep(NA, prange[1]-1)),   ##of BIC
+    dim_CV = c(rep(NA, prange[1]-1)),    ##of CV
+    dim_true = c(rep(NA, prange[1] - 1))
+  )
+  for(s in 1:length(sigmarange)){
+    results_dim_sigma <- GetDimComparison(n=100, p = p, sigma = sigmarange[s], B = 20, N= 20, p0 = p0)
+    new_row_result_dim_var_sigma = data.frame(
+      p = prange[s],
+      dim_AIC = sum(results_dim_sigma$AIC_dim)/N,
+      dim_BIC = sum(results_dim_sigma$BIC_dim)/N,
+      dim_CV = sum(results_dim_sigma$CV_dim)/N,
+      dim_true = p0
+    )
+    result_dim_var_sigma <- rbind(result_dim_var_sigma, new_row_result_dim_var_sigma)
+    
+    #print(s)
+  }
+  return(result_dim_var_sigma)
+}
+
+n<-10
+results_dim_glob_sigma = data.frame(
+  k = c(),
+  comp_criterion = c() 
+)
+sigmarange = (0:20)/10
+for(k in krange){
+  new_row_dim_sigma = data.frame(
+    k = k,
+    comp_criterion = CompareDimCriterionVarSigma(n = 100, p = 50, p0 = k, sigmarange = sigmarange) 
+  ) 
+  results_dim_glob_sigma <- rbind(results_dim_glob_sigma, new_row_dim_sigma)
+  print(k)
+} 
+```
+And we plot the results
+```{r}
+print(length(results_dim_glob_sigma$comp_criterion.dim_CV))
+y = krange
+x = sigmarange
+print(length(x)*length(y))
+z = matrix(data = results_dim_glob$comp_criterion.dim_AIC, nrow = length(x), ncol = length(y))
+persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "noise (sigma)", col="skyblue", type = "n")
+z = matrix(data = results_dim_glob$comp_criterion.dim_BIC, nrow = length(x), ncol = length(y))
+persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "noise (sigma)", col="red", type = "n", add = TRUE)
+z = matrix(data = results_dim_glob$comp_criterion.dim_CV, nrow = length(x), ncol = length(y))
+persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "noise (sigma)",  col="green", add = TRUE)
+z = matrix(data = results_dim_glob$comp_criterion.dim_true, nrow = length(x), ncol = length(y))
+persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "noise (sigma)",  col="purple", add = TRUE)
+rgl.snapshot("comp_all_crits_dim_var_sigma.png")
 ```
 
 
