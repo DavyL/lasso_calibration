@@ -24,7 +24,7 @@ knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
 
 Groups of students are asked to send an `R markdown` report generated via `R studio` to <franck.picard@ens-lyon.fr> at the end of the tutorial. You will need `Rstudio`, \LaTeX\ and packages for markdown: 
 
-```{r, message=FALSE}
+```{r, message=FALSE, eval=TRUE}
 library(knitr)
 library(rmarkdown)
 library(graphics) ##Necessary for plots
@@ -182,7 +182,7 @@ axis(side=2)
 In this section, we implement the Akaike Information Criterion (AIC): $$AIC = 2k - 2ln(\hat{L})$$ where $\hat{L}$ is the maximum value of the likelihood function for the model under consideration.
 The procedure consists of computing the Lasso with parameters $\lambda_1,\cdots,\lambda_N$. 
 ```{r}
-likelihood <- function(betal, Yl, sigma2 = 1.0){
+likelihood <- function(betal, Yl, sigma2 = 1.0){ ##Not used
   S<-0.0
   S <- S + t(Yl-betal)%*%(Yl-betal)
   n<- length(Yl)
@@ -191,8 +191,8 @@ likelihood <- function(betal, Yl, sigma2 = 1.0){
 }
 
 
-n      = 200
-p      = 150
+n      = 100
+p      = 20
 p0     = 5  #Number of nonzero coefficients
 sigma  = 1
 sigmaX = 1
@@ -401,6 +401,26 @@ GetLambdaComparison <- function(n = 100,
                                 lambda_init = 0.0 #First value used by lambda
                                 ){
   
+  if(p < p0 ){##We treat this (impossible) case so that we can obtain dataframes of equal size (for plotting)
+    results_short <- data.frame(
+      lambda_AIC =NA,
+      lambda_BIC = NA,
+      lambda_CV = NA,
+      lambda_opt = NA,
+      best_criterion = NA
+    )
+    # results_short_row <- data.frame(
+    #   lambda_AIC =NA,
+    #   lambda_BIC = NA,
+    #   lambda_CV = NA,
+    #   lambda_opt = NA,
+    #   best_criterion = NA
+    # )
+    # results_short <- rbind(results_short, results_short_row)
+    
+    return(results_short)
+  }
+  
   beta0  = c(rep(b0,p0),rep(0,p-p0))
   betah  = matrix(NA, ncol = p, nrow = B)
     
@@ -412,9 +432,11 @@ GetLambdaComparison <- function(n = 100,
     best_criterion = c()
   )
   
-
+  if(n<30){
+    print("Warning, if n < 30, cv will start throwing warnings")
+  }
   
-  for(t in 1:N){
+  for(t in 1:N){ ##We do the simulation N times
     
     X = sapply(1:p, FUN=function(x){rnorm(n,0,sigmaX)})
     Y = X%*%beta0 + rnorm(n,0,sigma)
@@ -476,8 +498,10 @@ GetLambdaComparison <- function(n = 100,
         lambda_BIC <- lambda
       }
       lambda <- lambda+lambda_step
-    }
+    }##End of for loop for finding best lambda (depending on criterion)
     
+    
+    ##We create a frame in which we store the best values obtained
     new_row_short_df <- data.frame(
       lambda_AIC = lambda_AIC,
       lambda_BIC = lambda_BIC,
@@ -498,15 +522,19 @@ GetLambdaComparison <- function(n = 100,
     else{
         new_row_short_df$best_criterion = 1  ##1: best criterion is AIC
     }
+    
+    
     results_short <- rbind(results_short, new_row_short_df)
-  }
+  }##End of for loop for computing on different instance of Y = Xbeta + eps
+  
+  
   return(results_short)
 }
+```
 
+```{r}
 
-
-n <- 100
-p <- 5 #Things are simpler if n/p is an integer
+n <- 30
 prange<- 5:20
 ratio_best_AIC = c(rep(0,length(prange)))
 ratio_best_BIC = c(rep(0,length(prange)))
@@ -517,21 +545,23 @@ result_var_np = data.frame(
   num_BIC_best = c()
 )
 for(s in 1:length(prange)){
-  results_lambda <- GetLambdaComparison(n=100, p = prange[s], B = 20, N= 20)
+  results_lambda <- GetLambdaComparison(n=n, p = prange[s], B = 20, N= 20)
   new_row_result_var_np = data.frame(
     p = prange[s],
     num_AIC_best = sum(results_lambda$best_criterion == 1),
     num_CV_best = sum(results_lambda$best_criterion == 0),
     num_BIC_best = sum(results_lambda$best_criterion == 2)
   )
-  result_var_np <- rbind(result_var_np, new_row_result_var_np)
-  ratio_best_AIC[s] <- new_row_result_var_np$num_AIC_best / (new_row_result_var_np$num_CV_best + new_row_result_var_np$num_AIC_best + new_row_result_var_np$num_BIC_best)
+
+    ratio_best_AIC[s] <- new_row_result_var_np$num_AIC_best / (new_row_result_var_np$num_CV_best + new_row_result_var_np$num_AIC_best + new_row_result_var_np$num_BIC_best)
   ratio_best_BIC[s] <- new_row_result_var_np$num_BIC_best / (new_row_result_var_np$num_CV_best + new_row_result_var_np$num_AIC_best + new_row_result_var_np$num_BIC_best)
+  
   print(s)
+  
   result_var_np <- rbind(result_var_np, new_row_result_var_np)
 }
-plot(ratio_best_AIC, main = "performance of AIC compared to others", ylab = "Avg number of times when AIC is best", xlab = "p")
-plot(ratio_best_BIC, main = "performance of BIC compared to others", ylab = "Avg number of times when BIC is best", xlab = "p")
+plot(ratio_best_AIC, x=prange, main = "performance of AIC compared to others", ylab = "Avg number of times when AIC is best", xlab = "p")
+plot(ratio_best_BIC, x = prange, main = "performance of BIC compared to others", ylab = "Avg number of times when BIC is best", xlab = "p")
 
 ```
 
@@ -552,42 +582,54 @@ CompareCriterionVarNP <- function(
                                 lambda_init = 0.0 #First value used by lambda
   
                                   ){
-  ratio_best_AIC = c(rep(0,length(prange)))
-  ratio_best_BIC = c(rep(0,length(prange)))
+  # result_var_np = data.frame(
+  #   p = c(rep(NA, max(p0 - prange[1], 0))),
+  #   num_AIC_best = c(rep(NA, max(p0 -prange[1], 0))),   ##Number of times when AIC is the best
+  #   num_CV_best = c(rep(NA, max(p0 -prange[1], 0))),   ##Number of times when CV is best
+  #   num_BIC_best = c(rep(NA, max(p0 -prange[1], 0)))
+  #   
+  #   ## prange[1]  prange[2]   
+  #   #k1  k2  k3
+  #   # k < prange[1] -> _best[k, ..., prange[1]] = NA
+  # )
   result_var_np = data.frame(
-    p = c(rep(prange[1], max(prange[1]-1, 0))),
-    num_AIC_best = c(rep(NA, prange[1]-1)),   ##Number of times when AIC is the best
-    num_CV_best = c(rep(NA, prange[1]-1)),   ##Number of times when CV is best
-    num_BIC_best = c(rep(NA, prange[1]-1))
+    p = c(),
+    num_AIC_best = c(),
+    num_CV_best = c(),
+    num_BIC_best = c()
   )
-  for(s in 1:length(prange)){
-    results_lambda <- GetLambdaComparison(n=100, p = prange[s], B = 20, N= 20, p0 = p0)
+  for(p in prange ){
+    results_lambda <- GetLambdaComparison(n=n, p = p, B = B, N= N, p0 = p0,sigma = sigma, sigmaX = sigmaX, b0 = b0, lambda_step = lambda_step, lambda_init = lambda_init)
     new_row_result_var_np = data.frame(
-      p = prange[s],
+      p = p,
       num_AIC_best = sum(results_lambda$best_criterion == 1),
       num_CV_best = sum(results_lambda$best_criterion == 0),
       num_BIC_best = sum(results_lambda$best_criterion == 2)
     )
     result_var_np <- rbind(result_var_np, new_row_result_var_np)
-    ratio_best_AIC[s] <- new_row_result_var_np$num_AIC_best / (new_row_result_var_np$num_CV_best + new_row_result_var_np$num_AIC_best + new_row_result_var_np$num_BIC_best)
-    ratio_best_BIC[s] <- new_row_result_var_np$num_BIC_best / (new_row_result_var_np$num_CV_best + new_row_result_var_np$num_AIC_best + new_row_result_var_np$num_BIC_best)
-    #print(s)
+
   }
   return(result_var_np)
 }
+```
 
-n<-10
+
+```{r}
+n<-50
 results_glob = data.frame(
   k = c(),
   comp_criterion = c() 
 )
-krange = 2:20
-maxp<- 60
+krange = c(5, 10, 20, 30, 40, 50)
+prange = c(5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100)
+N = 30
 for(k in krange){
+  
   new_row = data.frame(
     k = k,
-    comp_criterion = CompareCriterionVarNP(n <- 10, prange = k:maxp, p0 = k) 
+    comp_criterion = CompareCriterionVarNP(n = n, prange = prange, p0 = k,N=N) 
   )
+
   results_glob <- rbind(results_glob, new_row)
   print(k)
 }
@@ -597,18 +639,23 @@ for(k in krange){
 ```{r}
 ##Here we do the plotting 
 print(length(results_glob$comp_criterion.num_AIC_best))
-x = krange
-y = 1:maxp
+x = prange
+y = krange
 print(length(x)*length(y))
-z = matrix(data = results_glob$comp_criterion.num_AIC_best, nrow = length(y), ncol = length(x))
-persp3d(x=y, y=x,z=z, ylab = "number of nonzero coefs", xlab = "p", col="skyblue", type = "n")
+z = matrix(data = results_glob$comp_criterion.num_AIC_best, nrow = length(x), ncol = length(y))
+persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "p", col="skyblue", type = "n")
 z = matrix(data = results_glob$comp_criterion.num_BIC_best, nrow = length(y), ncol = length(x))
-persp3d(x=y, y=x,z=z, ylab = "number of nonzero coefs", xlab = "p", col="red", type = "n", add = TRUE)
+persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "p", col="red", type = "n", add = TRUE)
 z = matrix(data = results_glob$comp_criterion.num_CV_best, nrow = length(y), ncol = length(x))
-persp3d(x=y, y=x,z=z, ylab = "number of nonzero coefs", xlab = "p",  col="green", add = TRUE)
+persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "p",  col="green", add = TRUE)
 rgl.snapshot("comp_all_crits.png")
 
 ```
+![Comparison of which criterion gives the lambda closest to best lambda for varying dimensionality and sparsity](comp_all_crits.png)
+
+From this graph ( $n = 50, p \in [5, 100], p_0 \in [5, 50]$ ) we have that AIC outperforms clearly both CV and BIC in the large $p$, large $p_0$ area (high-dimension, low sparsity). In the low-dimensionality, high sparsity area (my guess : $p_0 < p/2$) all criterions have a similar performance. 
+
+
 Now, instead of comparing among criterions which one gives the closest lambda to the best (knowing the true solution) lambda, we want to compare for each criterion which ones give the right model dimension.
 
 ```{r}
@@ -623,6 +670,16 @@ GetDimComparison <- function(n = 100,
                                 lambda_step = 0.1, #Difference between two consecutive lambda
                                 lambda_init = 0.0 #First value used by lambda
                                 ){
+  
+  if(p < p0 ){##We treat this (impossible) case so that we can obtain dataframes of equal size (for plotting)
+    results_short <- data.frame(
+      AIC_dim =NA,
+      BIC_dim = NA,
+      CV_dim = NA,
+      true_dim = NA
+    )
+    return(results_short)
+  }
   
   beta0  = c(rep(b0,p0),rep(0,p-p0))
   betah  = matrix(NA, ncol = p, nrow = B)
@@ -715,6 +772,9 @@ GetDimComparison <- function(n = 100,
 
 
 dim_compare = GetDimComparison(N = 100, p = 100, p0 = 4)
+
+```
+```{r}
 hist(dim_compare$AIC_dim, breaks = 0:100 +0.5, freq = FALSE)
 hist(dim_compare$BIC_dim, breaks =0:100+0.5, freq = FALSE)
 hist(dim_compare$CV_dim, breaks =0:100 +0.5, freq = FALSE)
@@ -740,15 +800,22 @@ CompareDimCriterionVarNP <- function(
                                 lambda_step = 0.05, #Difference between two consecutive lambda
                                 lambda_init = 0.0 #First value used by lambda
                                   ){
+  # result_dim_var_np = data.frame(
+  #   p = c(rep(prange[1], max(prange[1]-1, 0))),
+  #   dim_AIC = c(rep(NA, prange[1]-1)),   ##Average dimension of AIC
+  #   dim_BIC = c(rep(NA, prange[1]-1)),   ##of BIC
+  #   dim_CV = c(rep(NA, prange[1]-1)),    ##of CV
+  #   dim_true = c(rep(NA, prange[1] - 1))
+  # )
   result_dim_var_np = data.frame(
-    p = c(rep(prange[1], max(prange[1]-1, 0))),
-    dim_AIC = c(rep(NA, prange[1]-1)),   ##Average dimesnsion of AIC
-    dim_BIC = c(rep(NA, prange[1]-1)),   ##of BIC
-    dim_CV = c(rep(NA, prange[1]-1)),    ##of CV
-    dim_true = c(rep(NA, prange[1] - 1))
+    p = c(),
+    dim_AIC = c(),
+    dim_BIC = c(),
+    dim_CV = c(),
+    dim_true = c()
   )
   for(s in 1:length(prange)){
-    results_dim <- GetDimComparison(n=100, p = prange[s], B = 20, N= 20, p0 = p0)
+    results_dim <- GetDimComparison(n=n, p = prange[s], B = B, N= N, p0 = p0, sigma = sigma, sigmaX = sigmaX, b0 = b0, lambda_step = lambda_step, lambda_init = lambda_init)
     new_row_result_dim_var_np = data.frame(
       p = prange[s],
       dim_AIC = sum(results_dim$AIC_dim)/N,
@@ -762,18 +829,25 @@ CompareDimCriterionVarNP <- function(
   }
   return(result_dim_var_np)
 }
+```
 
-n<-10
+```{r}
+
+
 results_dim_glob = data.frame(
   k = c(),
   comp_criterion = c() 
 )
-krange = 2:20
-maxp<- 60
+
+
+n = 50
+krange = c(1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50)
+prange = c(5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100)
+
 for(k in krange){
   new_row_dim = data.frame(
     k = k,
-    comp_criterion = CompareDimCriterionVarNP(n <- 10, prange = k:maxp, p0 = k) 
+    comp_criterion = CompareDimCriterionVarNP(n = n, prange = prange, p0 = k) 
   ) 
   results_dim_glob <- rbind(results_dim_glob, new_row_dim)
   print(k)
@@ -785,7 +859,8 @@ And we plot the results
 ##Here we do the plotting 
 print(length(results_dim_glob$comp_criterion.dim_CV))
 x = krange
-y = 1:maxp
+y = prange
+
 print(length(x)*length(y))
 z = matrix(data = results_dim_glob$comp_criterion.dim_AIC, nrow = length(y), ncol = length(x))
 persp3d(x=y, y=x,z=z, ylab = "number of nonzero coefs", xlab = "p", col="skyblue", type = "n")
@@ -794,9 +869,54 @@ persp3d(x=y, y=x,z=z, ylab = "number of nonzero coefs", xlab = "p", col="red", t
 z = matrix(data = results_dim_glob$comp_criterion.dim_CV, nrow = length(y), ncol = length(x))
 persp3d(x=y, y=x,z=z, ylab = "number of nonzero coefs", xlab = "p",  col="green", add = TRUE)
 z = matrix(data = results_dim_glob$comp_criterion.dim_true, nrow = length(y), ncol = length(x))
-persp3d(x=y, y=x,z=z, ylab = "number of nonzero coefs", xlab = "p",  col="green", add = TRUE)
+persp3d(x=y, y=x,z=z, ylab = "number of nonzero coefs", xlab = "p",  col="purple", add = TRUE)
 rgl.snapshot("comp_all_crits_dim.png")
 ```
+![Comparison of the dimension identified depending on dimensionality and sparsity](comp_all_crits_dim.png)
+We can observe that when $p=p0$, then all criterions perform equally. This probably comes from (TODO : check and add details) the fact when the sparsity of the input vector is constant and $p=p0$, hence AIC and BIC can be proved equivalent. Also, in the Gaussian case this certainly amounts to solving a least square to find the CV solution which is the same as for AIC or BIC.
+
+We can also take a closer look at what happens in the sparse low dimensional area:
+
+```{r}
+results_dim_glob = data.frame(
+  k = c(),
+  comp_criterion = c() 
+)
+
+
+n = 50
+krange = 1:25
+prange = 2*(2:25)
+
+for(k in krange){
+  new_row_dim = data.frame(
+    k = k,
+    comp_criterion = CompareDimCriterionVarNP(n = n, prange = prange, p0 = k) 
+  ) 
+  results_dim_glob <- rbind(results_dim_glob, new_row_dim)
+  print(k)
+}
+```
+```{r}
+##Here we do the plotting 
+print(length(results_dim_glob$comp_criterion.dim_CV))
+x = krange
+y = prange
+
+print(length(x)*length(y))
+z = matrix(data = results_dim_glob$comp_criterion.dim_AIC, nrow = length(y), ncol = length(x))
+persp3d(x=y, y=x,z=z, ylab = "number of nonzero coefs", xlab = "p", col="skyblue", type = "n")
+z = matrix(data = results_dim_glob$comp_criterion.dim_BIC, nrow = length(y), ncol = length(x))
+persp3d(x=y, y=x,z=z, ylab = "number of nonzero coefs", xlab = "p", col="red", type = "n", add = TRUE)
+z = matrix(data = results_dim_glob$comp_criterion.dim_CV, nrow = length(y), ncol = length(x))
+persp3d(x=y, y=x,z=z, ylab = "number of nonzero coefs", xlab = "p",  col="green", add = TRUE)
+z = matrix(data = results_dim_glob$comp_criterion.dim_true, nrow = length(y), ncol = length(x))
+persp3d(x=y, y=x,z=z, ylab = "number of nonzero coefs", xlab = "p",  col="purple", add = TRUE)
+rgl.snapshot("comp_all_crits_low_dim_sparse.png")
+```
+
+ ![Comparison of the dimension identified depending on dimensionality and sparsity for sparse low dimension](comp_all_crits_low_dim_sparse.png)
+
 #Influence of noise
 
 We are now left with having to measure the influence of the noise. In order to do that we will plot graphs of dimensionality identified (or distance w.r.t true $\lambda$) where the parameters are $(\sigma, n/p)$ or $(\sigma, k)$.
@@ -817,16 +937,16 @@ CompareDimCriterionVarSigma <- function(
                                 lambda_init = 0.0 #First value used by lambda
                                   ){
   result_dim_var_sigma = data.frame(
-    p = c(rep(prange[1], max(prange[1]-1, 0))),
-    dim_AIC = c(rep(NA, prange[1]-1)),   ##Average dimesnsion of AIC
-    dim_BIC = c(rep(NA, prange[1]-1)),   ##of BIC
-    dim_CV = c(rep(NA, prange[1]-1)),    ##of CV
-    dim_true = c(rep(NA, prange[1] - 1))
+    sigma = c(),#c(rep(prange[1], max(prange[1]-1, 0))),
+    dim_AIC = c(), #c(rep(NA, prange[1]-1)),   ##Average dimesnsion of AIC
+    dim_BIC = c(), #c(rep(NA, prange[1]-1)),   ##of BIC
+    dim_CV = c(),#c(rep(NA, prange[1]-1)),    ##of CV
+    dim_true = c()#c(rep(NA, prange[1] - 1))
   )
-  for(s in 1:length(sigmarange)){
-    results_dim_sigma <- GetDimComparison(n=100, p = p, sigma = sigmarange[s], B = 20, N= 20, p0 = p0)
+  for(s in sigmarange){
+    results_dim_sigma <- GetDimComparison(n=n, p = p, sigma = s, B = B, N= N, p0 = p0, sigmaX = sigmaX, b0 = b0, lambda_step = lambda_step, lambda_init = lambda_init)
     new_row_result_dim_var_sigma = data.frame(
-      p = prange[s],
+      sigma = s,
       dim_AIC = sum(results_dim_sigma$AIC_dim)/N,
       dim_BIC = sum(results_dim_sigma$BIC_dim)/N,
       dim_CV = sum(results_dim_sigma$CV_dim)/N,
@@ -838,17 +958,22 @@ CompareDimCriterionVarSigma <- function(
   }
   return(result_dim_var_sigma)
 }
+```
 
-n<-10
+```{r}
+n<-50
+p<-100
 results_dim_glob_sigma = data.frame(
   k = c(),
   comp_criterion = c() 
 )
-sigmarange = (0:20)/10
+sigmarange = c(0.0, 0.5, 1.0, 1.50, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0)
+krange = c(5, 10, 20, 30, 40, 50)
+
 for(k in krange){
   new_row_dim_sigma = data.frame(
     k = k,
-    comp_criterion = CompareDimCriterionVarSigma(n = 100, p = 50, p0 = k, sigmarange = sigmarange) 
+    comp_criterion = CompareDimCriterionVarSigma(n = n, p = p, p0 = k, sigmarange = sigmarange) 
   ) 
   results_dim_glob_sigma <- rbind(results_dim_glob_sigma, new_row_dim_sigma)
   print(k)
@@ -860,17 +985,101 @@ print(length(results_dim_glob_sigma$comp_criterion.dim_CV))
 y = krange
 x = sigmarange
 print(length(x)*length(y))
-z = matrix(data = results_dim_glob$comp_criterion.dim_AIC, nrow = length(x), ncol = length(y))
+z = matrix(data = results_dim_glob_sigma$comp_criterion.dim_AIC, nrow = length(y), ncol = length(x))
 persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "noise (sigma)", col="skyblue", type = "n")
-z = matrix(data = results_dim_glob$comp_criterion.dim_BIC, nrow = length(x), ncol = length(y))
+z = matrix(data = results_dim_glob_sigma$comp_criterion.dim_BIC, nrow = length(y), ncol = length(x))
 persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "noise (sigma)", col="red", type = "n", add = TRUE)
-z = matrix(data = results_dim_glob$comp_criterion.dim_CV, nrow = length(x), ncol = length(y))
+z = matrix(data = results_dim_glob_sigma$comp_criterion.dim_CV, nrow = length(y), ncol = length(x))
 persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "noise (sigma)",  col="green", add = TRUE)
-z = matrix(data = results_dim_glob$comp_criterion.dim_true, nrow = length(x), ncol = length(y))
+z = matrix(data = results_dim_glob_sigma$comp_criterion.dim_true, nrow = length(y), ncol = length(x))
 persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "noise (sigma)",  col="purple", add = TRUE)
-rgl.snapshot("comp_all_crits_dim_var_sigma.png")
+rgl.snapshot("comp_all_crits_dim_var_sigma_high_dim.png")
+```
+![Comparison of dimension estimated for criterions with varying noise and sparsity in a high-dimension setting](comp_all_crits_dim_var_sigma_low_dim.png)
+We can make several observations from the plot in a low-dimension setting (for n = 50, p = 100, sigmarange = [0,5] ) :
+1) All criterions overfit (include too many parameters) the data. CV is the best among three as it consistently identifies a dimension between 2 and 3 times the true dimension.
+2) There is a cliff given by some $\sigma_i = \phi_i(p_0)$  AIC and BIC perform nearly no dimension reduction (BIC makes dimension reduction soon) which is for small noise (!)
+3) In a situation without noise CV is the best, when noise is quite large BIC performs equivalently to CV (but is faster)
+
+
+
+
+```{r}
+n<-100
+p<-50
+results_dim_glob_sigma = data.frame(
+  k = c(),
+  comp_criterion = c() 
+)
+sigmarange = c(0.0, 0.5, 1.0, 1.50, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0)
+krange = c(5, 10, 20, 30, 40, 50)
+
+for(k in krange){
+  new_row_dim_sigma = data.frame(
+    k = k,
+    comp_criterion = CompareDimCriterionVarSigma(n = n, p = p, p0 = k, sigmarange = sigmarange) 
+  ) 
+  results_dim_glob_sigma <- rbind(results_dim_glob_sigma, new_row_dim_sigma)
+  print(k)
+} 
 ```
 
+```{r}
+print(length(results_dim_glob_sigma$comp_criterion.dim_CV))
+y = krange
+x = sigmarange
+print(length(x)*length(y))
+z = matrix(data = results_dim_glob_sigma$comp_criterion.dim_AIC, nrow = length(y), ncol = length(x))
+persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "noise (sigma)", col="skyblue", type = "n")
+z = matrix(data = results_dim_glob_sigma$comp_criterion.dim_BIC, nrow = length(y), ncol = length(x))
+persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "noise (sigma)", col="red", type = "n", add = TRUE)
+z = matrix(data = results_dim_glob_sigma$comp_criterion.dim_CV, nrow = length(y), ncol = length(x))
+persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "noise (sigma)",  col="green", add = TRUE)
+z = matrix(data = results_dim_glob_sigma$comp_criterion.dim_true, nrow = length(y), ncol = length(x))
+persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "noise (sigma)",  col="purple", add = TRUE)
+rgl.snapshot("comp_all_crits_dim_var_sigma_low_dim.png")
+```
+![Comparison of dimension estimated for criterions with varying noise and sparsity in a low dimension setting](comp_all_crits_dim_var_sigma_low_dim.png)
+We can make several observations from the plot (for n = 50, p = 100, sigmarange = [0,5] ) :
+
+
+
+#Closeness to $lambda_{opt}$
+```{r}
+
+n<-50
+results_glob_sigma_np = data.frame(
+  sigma = c(),
+  comp_criterion = c() 
+)
+sigmarange = c(0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.50, 1.75, 2.0, 2.5)
+prange = c(5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100)
+for(sigma in sigmarange){
+  new_row_sigma_np = data.frame(
+    sigma = sigma,
+    comp_criterion = CompareCriterionVarNP(n = n, prange = prange, p0 = 5, sigma = sigma, N = 50) #For small N graph is very noisy
+  )
+  results_glob_sigma_np <- rbind(results_glob_sigma_np, new_row_sigma_np)
+  #print(sigma)
+}
+```
+
+```{r}
+print(length(results_glob_sigma_np$comp_criterion.num_CV_best))
+x = prange
+y = sigmarange
+print(length(x)*length(y))
+z = matrix(data = results_glob_sigma_np$comp_criterion.num_AIC_best, nrow = length(y), ncol = length(x))
+persp3d(x=x, y=y,z=z, xlab = "dimensionality (n/p)", ylab = "noise (sigma)", col="skyblue", type = "n")
+z = matrix(data = results_glob_sigma_np$comp_criterion.num_BIC_best, nrow = length(y), ncol = length(x))
+persp3d(x=x, y=y,z=z, xlab = "dimensionality (n/p)", ylab = "noise (sigma)", col="red", type = "n", add = TRUE)
+z = matrix(data = results_glob_sigma_np$comp_criterion.num_CV_best, nrow = length(y), ncol = length(x))
+persp3d(x=x, y=y,z=z, xlab = "dimensionality (p)", ylab = "noise (sigma)",  col="green", add = TRUE)
+rgl.snapshot("comp_all_crits_var_sigma_p.png")
+
+```
+![Comparison of criterion with varying noise and dimensionality](comp_all_crits_var_sigma_p.png)
+At the moment, this graph makes not much sense. It might be better to plot something like $\ell^2$ distance between $\beta_{\lambda_{crit}}$ and $\beta^*$.
 
 # Overview of the project
 
