@@ -192,7 +192,7 @@ likelihood <- function(betal, Yl, sigma2 = 1.0){ ##Not used
 
 
 n      = 100
-p      = 20
+p      = 100
 p0     = 5  #Number of nonzero coefficients
 sigma  = 1
 sigmaX = 1
@@ -429,7 +429,10 @@ GetLambdaComparison <- function(n = 100,
     lambda_BIC = c(),
     lambda_CV = c(),
     lambda_opt = c(),
-    best_criterion = c()
+    best_criterion = c(),
+    res_AIC = c(),
+    res_BIC = c(),
+    res_CV = c()
   )
   
   if(n<30){
@@ -500,15 +503,19 @@ GetLambdaComparison <- function(n = 100,
       lambda <- lambda+lambda_step
     }##End of for loop for finding best lambda (depending on criterion)
     
-    
+
     ##We create a frame in which we store the best values obtained
     new_row_short_df <- data.frame(
       lambda_AIC = lambda_AIC,
       lambda_BIC = lambda_BIC,
       lambda_CV = cv.glmnet(X,Y, family = "gaussian",intercept=F)$lambda.1se,
       lambda_opt = lambda_opt,
-      best_criterion = NA
+      best_criterion = NA,
+      res_AIC = norm(glmnet(X,Y, family = "gaussian", lambda = lambda_AIC, intercept = F)$beta - glmnet(X,Y, family = "gaussian", lambda = lambda_opt, intercept = F)$beta),
+      res_BIC = norm(glmnet(X,Y, family = "gaussian", lambda = lambda_BIC, intercept = F)$beta - glmnet(X,Y, family = "gaussian", lambda = lambda_opt, intercept = F)$beta),
+      res_CV = NA
     )
+    new_row_short_df$res_CV = norm(glmnet(X,Y, family = "gaussian", lambda = new_row_short_df$lambda_CV, intercept = F)$beta - glmnet(X,Y, family = "gaussian", lambda = lambda_opt, intercept = F)$beta)
     
     ##We check which criterion gives the closest lambda wrt lambda_opt
     if(min(abs(new_row_short_df$lambda_AIC - new_row_short_df$lambda_opt), abs(new_row_short_df$lambda_BIC - new_row_short_df$lambda_opt)) > abs(new_row_short_df$lambda_CV - new_row_short_df$lambda_opt)){
@@ -534,36 +541,57 @@ GetLambdaComparison <- function(n = 100,
 
 ```{r}
 
-n <- 30
-prange<- 5:20
+n <- 100
+prange<- (0:20)*10
 ratio_best_AIC = c(rep(0,length(prange)))
 ratio_best_BIC = c(rep(0,length(prange)))
+ratio_best_CV = c(rep(0,length(prange)))
+
 result_var_np = data.frame(
   p = c(),
   num_AIC_best = c(),   ##Number of times when AIC is the best
   num_CV_best = c(),   ##Number of times when CV is best
-  num_BIC_best = c()
+  num_BIC_best = c(),
+  err_AIC = c(),
+  err_BIC = c(),
+  err_CV = c()
 )
 for(s in 1:length(prange)){
-  results_lambda <- GetLambdaComparison(n=n, p = prange[s], B = 20, N= 20)
+  results_lambda <- GetLambdaComparison(n=n, p = prange[s], B = 20, N= 50)
   new_row_result_var_np = data.frame(
     p = prange[s],
     num_AIC_best = sum(results_lambda$best_criterion == 1),
     num_CV_best = sum(results_lambda$best_criterion == 0),
-    num_BIC_best = sum(results_lambda$best_criterion == 2)
+    num_BIC_best = sum(results_lambda$best_criterion == 2),
+    err_AIC = sum(results_lambda$res_AIC),
+    err_BIC = sum(results_lambda$res_BIC),
+    err_CV = sum(results_lambda$res_CV)
   )
 
     ratio_best_AIC[s] <- new_row_result_var_np$num_AIC_best / (new_row_result_var_np$num_CV_best + new_row_result_var_np$num_AIC_best + new_row_result_var_np$num_BIC_best)
   ratio_best_BIC[s] <- new_row_result_var_np$num_BIC_best / (new_row_result_var_np$num_CV_best + new_row_result_var_np$num_AIC_best + new_row_result_var_np$num_BIC_best)
-  
+  ratio_best_CV[s] <- new_row_result_var_np$num_CV_best / (new_row_result_var_np$num_CV_best + new_row_result_var_np$num_AIC_best + new_row_result_var_np$num_BIC_best)
   print(s)
   
   result_var_np <- rbind(result_var_np, new_row_result_var_np)
 }
-plot(ratio_best_AIC, x=prange, main = "performance of AIC compared to others", ylab = "Avg number of times when AIC is best", xlab = "p")
-plot(ratio_best_BIC, x = prange, main = "performance of BIC compared to others", ylab = "Avg number of times when BIC is best", xlab = "p")
+
 
 ```
+
+```{r}
+plot(ratio_best_AIC, x=prange, main = "performance of AIC compared to others", ylab = "Avg number of times when AIC is best", xlab = "p")
+plot(ratio_best_BIC, x = prange, main = "performance of BIC compared to others", ylab = "Avg number of times when BIC is best", xlab = "p")
+plot(ratio_best_CV, x = prange, main = "performance of CV compared to others", ylab = "Avg number of times when CV is best", xlab = "p")
+
+plot(result_var_np$err_AIC, x = prange, main = "Avg l2 error of AIC", ylab = "Avg error", xlab = "p")
+plot(result_var_np$err_BIC, x = prange, main = "Avg l2 error of BIC", ylab = "Avg error", xlab = "p")
+plot(result_var_np$err_CV, x = prange, main = "Avg l2 error of CV", ylab = "Avg error", xlab = "p")
+
+
+```
+
+
 
 We now plot, depending on n/p and k (the number of nonzero coefficient) the performance of AIC, BIC and CV.
 ```{r}
@@ -604,7 +632,8 @@ CompareCriterionVarNP <- function(
       p = p,
       num_AIC_best = sum(results_lambda$best_criterion == 1),
       num_CV_best = sum(results_lambda$best_criterion == 0),
-      num_BIC_best = sum(results_lambda$best_criterion == 2)
+      num_BIC_best = sum(results_lambda$best_criterion == 2),
+      err_AIC = sum(results_lambda$res_AIC)
     )
     result_var_np <- rbind(result_var_np, new_row_result_var_np)
 
@@ -615,13 +644,13 @@ CompareCriterionVarNP <- function(
 
 
 ```{r}
-n<-50
+n<-100
 results_glob = data.frame(
   k = c(),
   comp_criterion = c() 
 )
 krange = c(5, 10, 20, 30, 40, 50)
-prange = c(5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100)
+prange = c(5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200)
 N = 30
 for(k in krange){
   
@@ -665,7 +694,7 @@ GetDimComparison <- function(n = 100,
                                 sigma  = 1,
                                 sigmaX = 1,
                                 b0     = 1,
-                                B = 20, #Number of lambda tested
+                                B = 100, #Number of lambda tested
                                 N = 10, #Number of instances of solving Y = X\theta + eps
                                 lambda_step = 0.1, #Difference between two consecutive lambda
                                 lambda_init = 0.0 #First value used by lambda
@@ -707,9 +736,7 @@ GetDimComparison <- function(n = 100,
       AIC = c(),
       BIC = c()
     )
-    
-    err_opt <- NA
-    lambda_opt <- 1
+
     min_lambda_AIC <- NA
     lambda_AIC <- NA
     min_lambda_BIC <- NA
@@ -771,7 +798,7 @@ GetDimComparison <- function(n = 100,
 }
 
 
-dim_compare = GetDimComparison(N = 100, p = 100, p0 = 4)
+dim_compare = GetDimComparison(N = 1000, n = 100, p = 10, p0 = 5)
 
 ```
 ```{r}
