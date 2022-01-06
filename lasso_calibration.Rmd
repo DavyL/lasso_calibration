@@ -19,7 +19,7 @@ editor_options:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, cache=TRUE, eval = TRUE, fig.show=TRUE, strip.white=TRUE)
+knitr::opts_chunk$set(echo = TRUE, cache=TRUE, eval = TRUE, strip.white=TRUE)
 ```
 
 # Preliminaries {.unnumbered}
@@ -493,7 +493,11 @@ GetLambdaComparison <- function(n = 100,
       lambda_BIC = NA,
       lambda_CV = NA,
       lambda_opt = NA,
-      best_criterion = NA
+      best_criterion = NA,
+      res_AIC = NA,
+      res_AICc = NA,
+      res_BIC = NA,
+      res_CV = NA
     )
     # results_short_row <- data.frame(
     #   lambda_AIC =NA,
@@ -734,7 +738,11 @@ CompareCriterionVarNP <- function(
     p = c(),
     num_AIC_best = c(),
     num_CV_best = c(),
-    num_BIC_best = c()
+    num_BIC_best = c(),
+    err_AIC = c(),
+    err_AICc = c(),
+    err_BIC = c(),
+    err_CV = c()
   )
   for(p in prange ){
     results_lambda <- GetLambdaComparison(n=n, p = p, B = B, N= N, p0 = p0,sigma = sigma, sigmaX = sigmaX, b0 = b0, lambda_step = lambda_step, lambda_init = lambda_init)
@@ -772,7 +780,7 @@ for(k in krange){
   )
 
   results_glob <- rbind(results_glob, new_row)
-  disp(k, "/", length(krange))
+  disp(k, "/", max(krange))
 }
 
 ```
@@ -990,7 +998,7 @@ CompareDimCriterionVarNP <- function(
     )
     result_dim_var_np <- rbind(result_dim_var_np, new_row_result_dim_var_np)
     
-    disp(s, "/", length(prange))
+    #disp(s, "/", length(prange))
   }
   return(result_dim_var_np)
 }
@@ -1009,7 +1017,7 @@ for(i in 1:length(krange)){
   dim_AIC_k[i] = mean(new_row_var_spars$AIC_dim, na.rm=TRUE)
   dim_BIC_k[i] = mean(new_row_var_spars$BIC_dim, na.rm=TRUE)
   dim_CV_k[i] = mean(new_row_var_spars$CV_dim, na.rm=TRUE)
-  disp(i, "/", length(krange))
+  disp(i, "/", max(krange))
 }
 
 
@@ -1043,7 +1051,7 @@ for(k in krange){
     comp_criterion = CompareDimCriterionVarNP(n = n, prange = prange, p0 = k) 
   ) 
   results_dim_glob <- rbind(results_dim_glob, new_row_dim)
-  disp(k,"/", length(krange))  
+  disp(k,"/", max(krange))  
 }
 ```
 
@@ -1095,7 +1103,7 @@ for(k in krange){
     comp_criterion = CompareDimCriterionVarNP(n = n, prange = prange, p0 = k) 
   ) 
   results_dim_glob <- rbind(results_dim_glob, new_row_dim)
-  disp(k, "/", length(krange))  
+  disp(k, "/", max(krange))  
 }
 ```
 
@@ -1191,13 +1199,13 @@ legend(x="topright", legend=c("AIC", "BIC", "CV", "true"), fill=c("skyblue", "re
 
 ```{r, results='hide', eval=FALSE}
 n<-50
-p<-100
+p<-200
 results_dim_glob_sigma = data.frame(
   k = c(),
   comp_criterion = c() 
 )
 sigmarange = c(0.0, 0.5, 1.0, 1.50, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0)
-krange = c(5, 10, 20, 30, 40, 50)
+krange = c(5, 10, 15, 20, 25, 30, 35, 40, 45, 50)
 
 for(k in krange){
   new_row_dim_sigma = data.frame(
@@ -1205,7 +1213,7 @@ for(k in krange){
     comp_criterion = CompareDimCriterionVarSigma(n = n, p = p, p0 = k, sigmarange = sigmarange) 
   ) 
   results_dim_glob_sigma <- rbind(results_dim_glob_sigma, new_row_dim_sigma)
-  disp(k, "/", length(krange))  
+  disp(k, "/", max(krange))  
 } 
 ```
 
@@ -1239,14 +1247,14 @@ noise (!) 3) In a situation without noise CV is the best, when noise is quite
 large BIC performs equivalently to CV (but is faster)
 
 ```{r, results = 'hide', eval=FALSE}
-n<-100
+n<-400
 p<-50
 results_dim_glob_sigma = data.frame(
   k = c(),
   comp_criterion = c() 
 )
 sigmarange = c(0.0, 0.5, 1.0, 1.50, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0)
-krange = c(5, 10, 20, 30, 40, 50)
+krange = c(5, 10, 15, 20, 25, 30, 35, 40, 45, 50)
 
 for(k in krange){
   new_row_dim_sigma = data.frame(
@@ -1254,7 +1262,7 @@ for(k in krange){
     comp_criterion = CompareDimCriterionVarSigma(n = n, p = p, p0 = k, sigmarange = sigmarange) 
   ) 
   results_dim_glob_sigma <- rbind(results_dim_glob_sigma, new_row_dim_sigma)
-  disp(k, "/", length(krange))  
+  disp(k, "/", max(krange))  
 } 
 ```
 
@@ -1310,6 +1318,24 @@ persp3d(x=x, y=y,z=z, xlab = "dimensionality (n/p)", ylab = "noise (sigma)", col
 z = matrix(data = results_glob_sigma_np$comp_criterion.num_BIC_best, nrow = length(y), ncol = length(x))
 persp3d(x=x, y=y,z=z, xlab = "dimensionality (n/p)", ylab = "noise (sigma)", col="red", type = "n", add = TRUE)
 z = matrix(data = results_glob_sigma_np$comp_criterion.num_CV_best, nrow = length(y), ncol = length(x))
+persp3d(x=x, y=y,z=z, xlab = "dimensionality (p)", ylab = "noise (sigma)",  col="green", add = TRUE)
+rgl.snapshot("comp_all_crits_var_sigma_p.png")
+
+```
+
+
+```{r}
+print(length(results_glob_sigma_np$comp_criterion.num_CV_best))
+x = prange
+y = sigmarange
+print(length(x)*length(y))
+z = matrix(data = results_glob_sigma_np$comp_criterion.err_AIC, nrow = length(y), ncol = length(x))
+persp3d(x=x, y=y,z=z, xlab = "dimensionality (n/p)", ylab = "noise (sigma)", col="skyblue", type = "n")
+z = matrix(data = results_glob_sigma_np$comp_criterion.err_AICc, nrow = length(y), ncol = length(x))
+persp3d(x=x, y=y,z=z, xlab = "dimensionality (n/p)", ylab = "noise (sigma)", col="yellow", type = "n")
+z = matrix(data = results_glob_sigma_np$comp_criterion.err_BIC, nrow = length(y), ncol = length(x))
+persp3d(x=x, y=y,z=z, xlab = "dimensionality (n/p)", ylab = "noise (sigma)", col="red", type = "n", add = TRUE)
+z = matrix(data = results_glob_sigma_np$comp_criterion.err_CV, nrow = length(y), ncol = length(x))
 persp3d(x=x, y=y,z=z, xlab = "dimensionality (p)", ylab = "noise (sigma)",  col="green", add = TRUE)
 rgl.snapshot("comp_all_crits_var_sigma_p.png")
 
