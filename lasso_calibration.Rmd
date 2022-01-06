@@ -19,7 +19,7 @@ editor_options:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
+knitr::opts_chunk$set(echo = TRUE, cache=TRUE, eval = TRUE, fig.show=TRUE, strip.white=TRUE)
 ```
 
 # Preliminaries {.unnumbered}
@@ -82,7 +82,7 @@ online documentation of the package that is very complete. Then the purpose of
 calibration is to determine the value of the hyperparameter $\lambda$ based on
 the observations.
 
-```{r, message=FALSE,fig.show="true",eval=F}
+```{r, message=FALSE,fig.show="true",eval=T}
 library(glmnet)
 n       = 100
 p       = 10
@@ -106,7 +106,7 @@ coef(fit)
 Parameter $\lambda$ is chosen by cross validation using \texttt{cv.glmnet} such
 that:
 
-```{r, message=TRUE,eval=F}
+```{r, message=TRUE,eval=T}
 library(glmnet)
 n       = 100
 p       = 10
@@ -217,7 +217,7 @@ computing the Lasso with parameters $\lambda_1,\cdots,\lambda_N$.
 ```{r}
 
 n      = 100
-p      = 100
+p      = 10
 p0     = 5  #Number of nonzero coefficients
 sigma  = 1
 sigmaX = 1
@@ -240,6 +240,7 @@ results_frame <- data.frame(
   k = c(),
   loglikelihood = c(),
   AIC = c(),
+  Cp = c(),
   AICc = c(),
   BIC = c()
 )
@@ -264,6 +265,7 @@ for (b in 1:N){#The increment is lambda
     k = j,
     negloglikelihood = -log(RSS), 
     AIC = 2*j + n*log(RSS/n),
+    Cp = RSS + 2*j*sigma/n,
     AICc = 2*j + n*log(RSS/n) + 2*j*(j+1)/(n-j-1),
     BIC = j*log(n) + n*log(RSS/n)
   )
@@ -272,26 +274,32 @@ for (b in 1:N){#The increment is lambda
   lambda <- lambda+lambda_step
 
 }
-results_frame$AIC - min(results_frame$AIC)
-results_frame$AICc - min(results_frame$AICc)
-results_frame$AICc - min(results_frame$AICc)
+results_frame$AIC <- results_frame$AIC - min(results_frame$AIC)
+results_frame$Cp <- results_frame$Cp - min(results_frame$Cp)
+results_frame$AICc <- results_frame$AICc - min(results_frame$AICc)
+results_frame$BIC <- results_frame$BIC - min(results_frame$BIC)
 
 lambda_cv = cv.glmnet(X,Y, family = "gaussian",intercept=F)$lambda.min  #We compute the cross validation solution
 s <- c(rep(lambda_cv, 1000))  #And fill an axis with it
 axis_lambda_cv <- xy.coords(x=s, y = 1:1000)  #that we will give to the plot
 
-plot(x = results_frame$lambda, y = results_frame$AIC, type = "n", xlab = "lambda", ylab = "AIC(theta_lambda)") #type = "n" makes it so that we can add the axis after initialization
+plot(x = results_frame$lambda, y = results_frame$AIC, type = "n", xlab = "lambda", ylab = "AIC(theta_lambda)", ylim=c(0, 200)) #type = "n" makes it so that we can add the axis after initialization
 plot.xy(axis_lambda_cv, type = "l") #type = "l" to draw lines
 plot.window(c(0.95*lambda_init, 1.05*lambda ), ylim = c(0.95*min(results_frame$AIC), 1.15*max(results_frame$AIC)))
 plot.xy( list(results_frame$lambda, results_frame$AIC, NULL, NULL), type="p")
 
-plot(x = results_frame$lambda, y = results_frame$AICc, type = "n", xlab = "lambda", ylab = "AICc(theta_lambda)") #type = "n" makes it so that we can add the axis after initialization
+plot(x = results_frame$lambda, y = results_frame$Cp, type = "n", xlab = "lambda", ylab = "C_p(theta_lambda)", ylim=c(0, 200)) #type = "n" makes it so that we can add the axis after initialization
+plot.xy(axis_lambda_cv, type = "l") #type = "l" to draw lines
+plot.window(c(0.95*lambda_init, 1.05*lambda ), ylim = c(0.95*min(results_frame$AIC), 1.15*max(results_frame$AIC)))
+plot.xy( list(results_frame$lambda, results_frame$AIC, NULL, NULL), type="p")
+
+plot(x = results_frame$lambda, y = results_frame$AICc, type = "n", xlab = "lambda", ylab = "AICc(theta_lambda)", ylim = c(0,200)) #type = "n" makes it so that we can add the axis after initialization
 plot.xy(axis_lambda_cv, type = "l") #type = "l" to draw lines
 plot.window(c(0.95*lambda_init, 1.05*lambda ), ylim = c(0.95*min(results_frame$AICc), 1.15*max(results_frame$AICc)))
 plot.xy( list(results_frame$lambda, results_frame$AICc, NULL, NULL), type="p")
 
 
-plot(x = results_frame$lambda, y = results_frame$BIC, type = "n", xlab = "lambda", ylab = "BIC(theta_lambda)") #type = "n" makes it so that we can add the axis after initialization
+plot(x = results_frame$lambda, y = results_frame$BIC, type = "n", xlab = "lambda", ylab = "BIC(theta_lambda)", ylim = c(0,200)) #type = "n" makes it so that we can add the axis after initialization
 plot.xy(axis_lambda_cv, type = "l") #type = "l" to draw lines
 plot.window(c(0.95*lambda_init, 1.05*lambda ), ylim = c(0.95*min(results_frame$BIC), 1.15*max(results_frame$BIC)))
 plot.xy( list(results_frame$lambda, results_frame$BIC, NULL, NULL), type="p")
@@ -335,7 +343,7 @@ combination of $p/n, s, \lambda_{AIC}, \lambda_{BIC}, \dots$. Improved (ter):
 Model as a polynomial/log linear of $p/n$ and $s$ (and
 $\lambda_{AIC}, \lambda_{Bic},\cdots$)
 
-```{r}
+```{r, results='hide'}
 ##We fix p, n and k
 #We run M instances of Y = X\theta + eps
 #Each time we obtain $\lambda_{AIC, CV, opt}$ and we create a list which contains for each possible index (AIC or CV) the number of times it is the closest from lambda_opt
@@ -450,9 +458,13 @@ for(t in 1:N){
     new_row_short_df$best_criterion = 1  ##1: best criterion is AIC
   }
   results_short <- rbind(results_short, new_row_short_df)
-  print(t)
-
+  disp(t, "/", N)
 }
+
+```
+
+
+```{r}
 hist(results_short$best_criterion, main = "Hist of best criterion between CV (0) and AIC (1)")
 
 
@@ -626,7 +638,7 @@ GetLambdaComparison <- function(n = 100,
 }
 ```
 
-```{r}
+```{r, results='hide'}
 
 n <- 100
 prange<- (0:40)*5
@@ -660,7 +672,7 @@ for(s in 1:length(prange)){
   ratio_best_BIC[s] <- new_row_result_var_np$num_BIC_best / (new_row_result_var_np$num_CV_best + new_row_result_var_np$num_AIC_best + new_row_result_var_np$num_BIC_best)
   ratio_best_CV[s] <- new_row_result_var_np$num_CV_best / (new_row_result_var_np$num_CV_best + new_row_result_var_np$num_AIC_best + new_row_result_var_np$num_BIC_best)
  
-   print(s)
+  disp(s, "/", length(prange))
   
   result_var_np <- rbind(result_var_np, new_row_result_var_np)
 }
@@ -673,7 +685,13 @@ plot(ratio_best_AIC, x=prange, main = "performance of AIC compared to others", y
 plot(ratio_best_BIC, x = prange, main = "performance of BIC compared to others", ylab = "Avg number of times when BIC is best", xlab = "p")
 plot(ratio_best_CV, x = prange, main = "performance of CV compared to others", ylab = "Avg number of times when CV is best", xlab = "p")
 
-plot(result_var_np$err_AIC, x = prange, main = "Avg l2 error", ylab = "Avg error", xlab = "p", type = "b")
+plot(ratio_best_AIC, x=prange, main = "performance of AIC/BIC/CV", ylab = "Avg number of times each criterion is best", xlab = "p", ylim = c(0,1), type = "b", col="skyblue")
+points(ratio_best_BIC, x = prange, type = "b", col = "red")
+points(ratio_best_CV, x = prange, type = "b", col = "green")
+legend(x="topright", legend=c("AIC", "BIC", "CV"), fill=c("skyblue", "red", "green"))
+
+
+plot(result_var_np$err_AIC, x = prange, main = "Avg l2 error", ylab = "Avg error", xlab = "p", type = "b", col = "skyblue")
 points(result_var_np$err_BIC, x = prange, type = "b", col ="red")
 points(result_var_np$err_CV, x = prange, type = "b", col = "green")
 points(y=result_var_np$err_AICc, x = prange, type = "b", col="yellow")
@@ -737,7 +755,7 @@ CompareCriterionVarNP <- function(
 }
 ```
 
-```{r}
+```{r, results='hide', eval=FALSE}
 n<-100
 results_glob = data.frame(
   k = c(),
@@ -754,12 +772,12 @@ for(k in krange){
   )
 
   results_glob <- rbind(results_glob, new_row)
-  print(k)
+  disp(k, "/", length(krange))
 }
 
 ```
 
-```{r}
+```{r, eval=FALSE}
 ##Here we do the plotting 
 print(length(results_glob$comp_criterion.num_AIC_best))
 x = prange
@@ -774,7 +792,7 @@ persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "p",  col="green"
 rgl.snapshot("comp_all_crits.png")
 ```
 
-```{r}
+```{r, eval=FALSE}
 
 z = matrix(data = results_glob$comp_criterion.err_AIC, nrow = length(x), ncol = length(y))
 persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "p", col="skyblue", type = "n")
@@ -932,7 +950,7 @@ the different criterions.
 We now plot, depending on n/p and k (the number of nonzero coefficient) the
 performance (avg model dimension) of AIC, BIC and CV.
 
-```{r}
+```{r, results='hide'}
 ##We wrap the previous code in a function to get, for fixed n and a fixed sparsity level k/n, the results when we vary p
 #Then we will vary k between some values and then display the results
 CompareDimCriterionVarNP <- function(
@@ -972,14 +990,14 @@ CompareDimCriterionVarNP <- function(
     )
     result_dim_var_np <- rbind(result_dim_var_np, new_row_result_dim_var_np)
     
-    #print(s)
+    disp(s, "/", length(prange))
   }
   return(result_dim_var_np)
 }
 ```
 
 We compute estimated dimension with fixed n,p,sigma^2 for varying p_0
-```{r}
+```{r, results='hide'}
 krange = 1:25
 dim_AIC_k = c(rep(0,length(krange)))
 dim_BIC_k = c(rep(0,length(krange)))
@@ -991,6 +1009,7 @@ for(i in 1:length(krange)){
   dim_AIC_k[i] = mean(new_row_var_spars$AIC_dim, na.rm=TRUE)
   dim_BIC_k[i] = mean(new_row_var_spars$BIC_dim, na.rm=TRUE)
   dim_CV_k[i] = mean(new_row_var_spars$CV_dim, na.rm=TRUE)
+  disp(i, "/", length(krange))
 }
 
 
@@ -1005,7 +1024,7 @@ legend(x="topright", legend=c("AIC", "BIC", "CV", "true"), fill=c("skyblue", "re
 ```
 
 
-```{r}
+```{r, results='hide', eval=FALSE}
 
 
 results_dim_glob = data.frame(
@@ -1024,13 +1043,13 @@ for(k in krange){
     comp_criterion = CompareDimCriterionVarNP(n = n, prange = prange, p0 = k) 
   ) 
   results_dim_glob <- rbind(results_dim_glob, new_row_dim)
-  print(k)
+  disp(k,"/", length(krange))  
 }
 ```
 
 And we plot the results
 
-```{r}
+```{r, results='hide', eval=FALSE}
 ##Here we do the plotting 
 print(length(results_dim_glob$comp_criterion.dim_CV))
 y = krange
@@ -1059,7 +1078,7 @@ same as for AIC or BIC.
 We can also take a closer look at what happens in the sparse low dimensional
 area:
 
-```{r}
+```{r, results='hide', eval=FALSE}
 results_dim_glob = data.frame(
   k = c(),
   comp_criterion = c() 
@@ -1076,11 +1095,11 @@ for(k in krange){
     comp_criterion = CompareDimCriterionVarNP(n = n, prange = prange, p0 = k) 
   ) 
   results_dim_glob <- rbind(results_dim_glob, new_row_dim)
-  print(k)
+  disp(k, "/", length(krange))  
 }
 ```
 
-```{r}
+```{r, results='hide', eval=FALSE}
 ##Here we do the plotting 
 print(length(results_dim_glob$comp_criterion.dim_CV))
 x = krange
@@ -1156,21 +1175,21 @@ varSigmaHighDim= CompareDimCriterionVarSigma(n = 100, p = 200, p0 = 5, N = 50, B
 And we plot
 ```{r}
 plot(y=varSigmaLowDim$dim_AIC, x=sigmarange, xlab="sigma2", ylab="estimated dimension", ylim = c(0,10), col = "skyblue", type="b")
-points(y=varSigmaLowDim$dim_BIC, x=sigmarange, xlab="sigma2", ylab="estimated dimension", col = "red", type="b")
-points(y=varSigmaLowDim$dim_CV, x=sigmarange, xlab="sigma2", ylab="estimated dimension", col = "green", type="b")
-points(y=varSigmaLowDim$dim_true, x=sigmarange, xlab="sigma2", ylab="estimated dimension", col = "purple", type="p")
+points(y=varSigmaLowDim$dim_BIC, x=sigmarange, col = "red", type="b")
+points(y=varSigmaLowDim$dim_CV, x=sigmarange, col = "green", type="b")
+points(y=varSigmaLowDim$dim_true, x=sigmarange, col = "purple", type="p")
 legend(x="topright", legend=c("AIC", "BIC", "CV", "true"), fill=c("skyblue", "red", "green", "purple"))
 
 plot(y=varSigmaHighDim$dim_AIC, x=sigmarange, xlab="sigma2", ylab="estimated dimension", ylim = c(0,200), col = "skyblue", type="b")
-points(y=varSigmaHighDim$dim_BIC, x=sigmarange, xlab="sigma2", ylab="estimated dimension", col = "red", type="b")
-points(y=varSigmaHighDim$dim_CV, x=sigmarange, xlab="sigma2", ylab="estimated dimension", col = "green", type="b")
-points(y=varSigmaHighDim$dim_true, x=sigmarange, xlab="sigma2", ylab="estimated dimension", col = "purple", type="p")
+points(y=varSigmaHighDim$dim_BIC, x=sigmarange, col = "red", type="b")
+points(y=varSigmaHighDim$dim_CV, x=sigmarange, col = "green", type="b")
+points(y=varSigmaHighDim$dim_true, x=sigmarange, col = "purple", type="p")
 legend(x="topright", legend=c("AIC", "BIC", "CV", "true"), fill=c("skyblue", "red", "green", "purple"))
 
 ```
 
 
-```{r}
+```{r, results='hide', eval=FALSE}
 n<-50
 p<-100
 results_dim_glob_sigma = data.frame(
@@ -1186,13 +1205,13 @@ for(k in krange){
     comp_criterion = CompareDimCriterionVarSigma(n = n, p = p, p0 = k, sigmarange = sigmarange) 
   ) 
   results_dim_glob_sigma <- rbind(results_dim_glob_sigma, new_row_dim_sigma)
-  print(k)
+  disp(k, "/", length(krange))  
 } 
 ```
 
 And we plot the results
 
-```{r}
+```{r, results='hide', eval=FALSE}
 print(length(results_dim_glob_sigma$comp_criterion.dim_CV))
 y = krange
 x = sigmarange
@@ -1219,7 +1238,7 @@ dimension reduction (BIC makes dimension reduction soon) which is for small
 noise (!) 3) In a situation without noise CV is the best, when noise is quite
 large BIC performs equivalently to CV (but is faster)
 
-```{r}
+```{r, results = 'hide', eval=FALSE}
 n<-100
 p<-50
 results_dim_glob_sigma = data.frame(
@@ -1235,11 +1254,11 @@ for(k in krange){
     comp_criterion = CompareDimCriterionVarSigma(n = n, p = p, p0 = k, sigmarange = sigmarange) 
   ) 
   results_dim_glob_sigma <- rbind(results_dim_glob_sigma, new_row_dim_sigma)
-  print(k)
+  disp(k, "/", length(krange))  
 } 
 ```
 
-```{r}
+```{r, results='hide', eval=FALSE}
 print(length(results_dim_glob_sigma$comp_criterion.dim_CV))
 y = krange
 x = sigmarange
@@ -1262,7 +1281,7 @@ We can make several observations from the plot (for n = 50, p = 100, sigmarange
 
 #Closeness to $lambda_{opt}$
 
-```{r}
+```{r, results='hide', eval=FALSE}
 
 n<-50
 results_glob_sigma_np = data.frame(
@@ -1277,11 +1296,11 @@ for(sigma in sigmarange){
     comp_criterion = CompareCriterionVarNP(n = n, prange = prange, p0 = 5, sigma = sigma, N = 50) #For small N graph is very noisy
   )
   results_glob_sigma_np <- rbind(results_glob_sigma_np, new_row_sigma_np)
-  #print(sigma)
+  disp(sigma, "/", max(sigmarange))
 }
 ```
 
-```{r}
+```{r, results='hide', eval=FALSE}
 print(length(results_glob_sigma_np$comp_criterion.num_CV_best))
 x = prange
 y = sigmarange
@@ -1300,6 +1319,115 @@ rgl.snapshot("comp_all_crits_var_sigma_p.png")
 dimensionality](comp_all_crits_var_sigma_p.png) At the moment, this graph makes
 not much sense. It might be better to plot something like $\ell^2$ distance
 between $\beta_{\lambda_{crit}}$ and $\beta^*$.
+
+#Cross validation
+
+```{r}
+cross_validation <- function(Y, X, nfolds = 10, lambdarange = (0:20)/10){
+  err_fold = c(rep(0, length(lambdarange)))
+  train_indices = cross_validation_get_indices(1:length(Y), nfolds = nfolds)
+  min_err = NA
+  min_index = NA
+  for(lambda_index in 1:length(lambdarange)){
+    for(cur_fold in 1:nfolds){
+      
+        #print(X[train_indices[[cur_fold]],])
+        bh = glmnet(x= X[train_indices[[cur_fold]],], y = Y[train_indices[[cur_fold]]], family = "gaussian", intercept=F, lambda = lambdarange[lambda_index])$beta
+        #print(bh)
+        test_indices = !train_indices[[cur_fold]]
+        #print( X[test_indices,]%*%bh)
+        err_fold[lambda_index] = err_fold[lambda_index] + t(Y[test_indices] - X[test_indices,]%*%bh)%*%(Y[test_indices] - X[test_indices,]%*%bh)
+    }
+    
+    err_fold[lambda_index] = err_fold[lambda_index]/nfolds
+    
+    if(is.na(min_err) || err_fold[lambda_index] <= min_err ){
+      min_err = err_fold[lambda_index]
+      min_index = lambda_index
+      min_lambda = lambdarange[lambda_index]
+    }
+  }
+  
+  
+  return(list("errors" = err_fold, "min_err" = min_err, "min_index" = min_index, "min_lambda" = min_lambda))
+}
+
+cross_validation_get_indices <- function(index_range, nfolds = 10){
+  len <- length(index_range)
+  all_indices = list(rep(TRUE, length(Y)))
+  index_list = rep(all_indices, nfolds)
+  offset = len/nfolds
+  for( k in 1:nfolds){
+    for(i in ((k-1)*offset+1):(k*offset)){
+      index_list[[k]][i] = FALSE
+    }    
+  }
+  return(index_list)
+}
+```
+
+```{r}
+
+
+n       = 100
+p       = 100
+p0      = 5
+sigma   = 1
+sigmaX  = 1
+b0      = 1
+beta0   = c(rep(b0,p0),rep(0,p-p0))
+X       = sapply(1:p, FUN=function(x){rnorm(n,0,sigmaX)})
+Y       = X%*%beta0 + rnorm(n,0,sigma)
+
+ret <- cross_validation(Y=Y, X=X, nfolds = 10, lambdarange = (0:150)/100)
+errors<-ret$errors
+plot(errors)
+
+disp("Value of lambda_cv of our own implementation:",ret$min_lambda)
+disp("Value of lambda of cv.glmnet:", cv.glmnet(y=Y, x=X, type.measure = "mse", nfolds = 10, family = "gaussian", lambda = (0:150)/100)$lambda.min)
+
+```
+We check that on average (varying $n,p$ and $\sigma^2$) we indeed have the same results as cv.glmnet for our own implementation of cross validation. We also compute running times of both implementations.
+```{r, results='hide'}
+N<-100
+err_glm = c(rep(0,N))
+time_own = 0.0
+time_glm = 0.0
+for(i in 1:N){
+  n       = as.integer(sample(c(30,40,50,60,70,80,90,100,110,120,130,140,150,160,170,180,190,200), size = 1))
+  p       = as.integer(sample(10:n, size = 1))
+  p0      = 5
+  sigma   = sample(sample(0:5),size = 1)
+  sigmaX  = 1
+  b0      = 1
+  beta0   = c(rep(b0,p0),rep(0,p-p0))
+  X       = sapply(1:p, FUN=function(x){rnorm(n,0,sigmaX)})
+  Y       = X%*%beta0 + rnorm(n,0,sigma)
+  
+  step_time = Sys.time()
+  ret_own = cross_validation(Y=Y, X=X, nfolds = 10, lambdarange = (0:200)/100)
+  step_time = Sys.time() - step_time
+  time_own = time_own + step_time
+  
+  step_time = Sys.time()
+  ret_glm = cv.glmnet(y=Y, x=X, nfolds = 10, family = "gaussian", lambda = (0:150)/100)
+  step_time = Sys.time() - step_time
+  time_glm = time_glm + step_time
+  
+  err_glm[i] = ret_own$min_lambda - ret_glm$lambda.min 
+  
+  disp(i, "/", N)
+}
+```
+
+```{r}
+hist(err_glm, freq = FALSE)
+disp("mean error between our implemention and cv.glmnet:", mean(err_glm))
+disp("time spent in our own implementation:", time_own)
+disp("time spent in cv.glmnet implementation:", time_glm)
+disp("ratio of times own/glm:",as.double(time_own)/as.double(time_glm))
+```
+
 
 # Overview of the project
 
