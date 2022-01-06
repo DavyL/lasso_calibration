@@ -13,16 +13,21 @@ output:
   pdf_document:
     number_sections: true
 latex_engine: xelatex 
+editor_options: 
+  markdown: 
+    wrap: 80
 ---
-
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
 ```
 
-# Preliminaries {-}
+# Preliminaries {.unnumbered}
 
-Groups of students are asked to send an `R markdown` report generated via `R studio` to <franck.picard@ens-lyon.fr> at the end of the tutorial. You will need `Rstudio`, \LaTeX\ and packages for markdown: 
+Groups of students are asked to send an `R markdown` report generated via
+`R studio` to
+[franck.picard\@ens-lyon.fr](mailto:franck.picard@ens-lyon.fr){.email} at the
+end of the tutorial. You will need `Rstudio`, \LaTeX and packages for markdown:
 
 ```{r, message=FALSE, eval=TRUE}
 library(knitr)
@@ -33,17 +38,25 @@ library(glmnet)
 library(rgl)
 ```
 
-This report should answer the questions by commentaries and codes generating appropriate graphical outputs. [A cheat sheet of the  markdown syntax can be found here.](https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet)
+This report should answer the questions by commentaries and codes generating
+appropriate graphical outputs. [A cheat sheet of the markdown syntax can be
+found here.](https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet)
 
 # Regression model
 
-This project aims at studying the empirical properties of the LASSO based on simulated data. The statistical framework is the linear regression model, such that
+This project aims at studying the empirical properties of the LASSO based on
+simulated data. The statistical framework is the linear regression model, such
+that
 $$Y_i = x_i^T \beta^* +\varepsilon_i, \,\, \varepsilon_i \sim \mathcal{N}(0,\sigma^2),$$
-with $Y$ a vector in $\mathbb{R}^n$, and $\beta^*$ a vector in $\mathbb{R}^p$ with $p_0$ non-null elements. In the following $J_0=\{j \in \{1,...,p\}, \beta_j^* \neq 0\}$. For simplification, we will consider that there is only one distinct non null value in $\beta^*$: $\beta^* = \beta_0^* \times (1,...,1,0,...0)$. 
+with $Y$ a vector in $\mathbb{R}^n$, and $\beta^*$ a vector in $\mathbb{R}^p$
+with $p_0$ non-null elements. In the following
+$J_0=\{j \in \{1,...,p\}, \beta_j^* \neq 0\}$. For simplification, we will
+consider that there is only one distinct non null value in $\beta^*$:
+$\beta^* = \beta_0^* \times (1,...,1,0,...0)$.
 
 # Simulation of observations
 
-```{r, message=FALSE,fig.show="true",eval=T}  
+```{r, message=FALSE,fig.show="true",eval=T}
 n       = 100
 p       = 10
 p0      = 5
@@ -58,13 +71,18 @@ plot(Y,X%*%beta0)
 
 ```
 
-# Lasso and the $\texttt{glmnet}$ $\texttt{R}$-package 
+# Lasso and the $\texttt{glmnet}$ $\texttt{R}$-package
 
-In practice, model parameters are estimated using the $\texttt{glmnet}$ $\texttt{R}$-package to compute the lasso estimator 
+In practice, model parameters are estimated using the $\texttt{glmnet}$
+$\texttt{R}$-package to compute the lasso estimator
 $$\widehat{\beta}_{\lambda} = \min_{\beta_0,\beta} \frac{1}{N} \sum_{i=1}^{N} w_i l(y_i,\beta_0+\beta^T x_i) + \lambda\left[(1-\alpha)||\beta||_2^2/2 + \alpha ||\beta||_1\right],$$
-with $\alpha=1$ for the Lasso, $\alpha=0$ for Ridge Regression and $\alpha \in ]0,1[$ for Elastic Net. In a first step you are invited to check the online documentation of the package that is very complete. Then the purpose of calibration is to determine the value of the hyperparameter $\lambda$ based on the observations.
+with $\alpha=1$ for the Lasso, $\alpha=0$ for Ridge Regression and
+$\alpha \in ]0,1[$ for Elastic Net. In a first step you are invited to check the
+online documentation of the package that is very complete. Then the purpose of
+calibration is to determine the value of the hyperparameter $\lambda$ based on
+the observations.
 
-```{r, message=FALSE,fig.show="true",eval=F}  
+```{r, message=FALSE,fig.show="true",eval=F}
 library(glmnet)
 n       = 100
 p       = 10
@@ -82,10 +100,11 @@ names(fit)
 print(fit)
 coef(fit)
 ```
- 
+
 # Numerical Calibration in practice
 
-Parameter $\lambda$ is chosen by cross validation using \texttt{cv.glmnet} such that:
+Parameter $\lambda$ is chosen by cross validation using \texttt{cv.glmnet} such
+that:
 
 ```{r, message=TRUE,eval=F}
 library(glmnet)
@@ -99,7 +118,7 @@ beta0   = c(rep(b0,p0),rep(0,p-p0))
 X       = sapply(1:p, FUN=function(x){rnorm(n,0,sigmaX)})
 Y       = X%*%beta0 + rnorm(n,0,sigma)
 
-lambda.cv = cv.glmnet(X,Y, family = "gaussian",intercept=F)$lambda.1se
+lambda.cv = cv.glmnet(X,Y, family = "gaussian",intercept=F)$lambda.1se  ##Careful, .1se seems to be highest lambda within one standard error of .min (in the simulation we will use .min)
 bh        = glmnet(X,Y,family = "gaussian",intercept=F, 
                    lambda=lambda.cv)$beta
 if ( sum(abs(bh))==0 ) {bh = rep(0,p)}
@@ -107,20 +126,31 @@ bh        = as.vector(bh)
 
 ```
 
-The first part of your projet will be to re-implement the cross validation procedure, and to verify that your implementation is correct based on the \texttt{cv.glmnet} function that will be used to check your results. You will also implement the calibration of $\lambda$ based on the AIC and on the BIC.
+The first part of your projet will be to re-implement the cross validation
+procedure, and to verify that your implementation is correct based on the
+\texttt{cv.glmnet} function that will be used to check your results. You will
+also implement the calibration of $\lambda$ based on the AIC and on the BIC.
 
 # Simulations setting
 
-The performance of the lasso depends on different factors, and numerical simulations are used to study the impact of these factors on the capacity of the lasso to select the dimension of the model. Among those factors, we can identify $n$ (number of observations), $p$ (dimensionality), $p_0$ and $\beta^*$ (strength of the signal), $\sigma$ (strength of noise).  Studying the impact of all factors would not be realistic, so we focus on:
+The performance of the lasso depends on different factors, and numerical
+simulations are used to study the impact of these factors on the capacity of the
+lasso to select the dimension of the model. Among those factors, we can identify
+$n$ (number of observations), $p$ (dimensionality), $p_0$ and $\beta^*$
+(strength of the signal), $\sigma$ (strength of noise). Studying the impact of
+all factors would not be realistic, so we focus on:
 
-- $n/p$ will be chosen so that we study the "low-dimensional regime" as well as the "high-dimensional regime".
-- $p_0$ will be fixed at 5
-- $\beta_0^*=1$ 
-- $\sigma$ will vary.
+-   $n/p$ will be chosen so that we study the "low-dimensional regime" as well
+    as the "high-dimensional regime".
+-   $p_0$ will be fixed at 5
+-   $\beta_0^*=1$
+-   $\sigma$ will vary.
 
-As an indicator of performance, we will study only the dimension of the selected model, ie $\hat{s} = \sum_{j=1}^p 1_{\hat{\beta}_j \neq 0}$. In order to conduct your simulations, you will start from the following example code: 
+As an indicator of performance, we will study only the dimension of the selected
+model, ie $\hat{s} = \sum_{j=1}^p 1_{\hat{\beta}_j \neq 0}$. In order to conduct
+your simulations, you will start from the following example code:
 
-```{r, message=TRUE,fig.show="true",eval=T}  
+```{r, message=TRUE,fig.show="true",eval=T}
 n      = 100
 p      = 10
 p0     = 5  #Number of nonzero coefficients
@@ -179,17 +209,12 @@ axis(side=2)
 
 ## AIC
 
-In this section, we implement the Akaike Information Criterion (AIC): $$AIC = 2k - 2ln(\hat{L})$$ where $\hat{L}$ is the maximum value of the likelihood function for the model under consideration.
-The procedure consists of computing the Lasso with parameters $\lambda_1,\cdots,\lambda_N$. 
-```{r}
-likelihood <- function(betal, Yl, sigma2 = 1.0){ ##Not used
-  S<-0.0
-  S <- S + t(Yl-betal)%*%(Yl-betal)
-  n<- length(Yl)
-  
-  return (1/sqrt(2 * pi* sigma2))**(n/2)*exp(-S/(2*sigma2))
-}
+In this section, we implement the Akaike Information Criterion (AIC):
+$$AIC = 2k - 2ln(\hat{L})$$ where $\hat{L}$ is the maximum value of the
+likelihood function for the model under consideration. The procedure consists of
+computing the Lasso with parameters $\lambda_1,\cdots,\lambda_N$.
 
+```{r}
 
 n      = 100
 p      = 100
@@ -206,7 +231,7 @@ Y     = X%*%beta0 + rnorm(n,0,sigma)
 
 N <- 500 #Number of lambda tested
 lambda_step <- 0.005 #Difference between two consecutive lambda
-lambda_init <- 0.0 #First value used by lambda
+lambda_init <- 0.005 #First value used by lambda
 
 lambda <- lambda_init
 results_frame <- data.frame(
@@ -215,6 +240,7 @@ results_frame <- data.frame(
   k = c(),
   loglikelihood = c(),
   AIC = c(),
+  AICc = c(),
   BIC = c()
 )
 
@@ -237,7 +263,8 @@ for (b in 1:N){#The increment is lambda
     betah = betah,
     k = j,
     negloglikelihood = -log(RSS), 
-    AIC = 2*j + n*log(RSS),
+    AIC = 2*j + n*log(RSS/n),
+    AICc = 2*j + n*log(RSS/n) + 2*j*(j+1)/(n-j-1),
     BIC = j*log(n) + n*log(RSS/n)
   )
   results_frame <- rbind(results_frame, new_row_df)
@@ -245,7 +272,11 @@ for (b in 1:N){#The increment is lambda
   lambda <- lambda+lambda_step
 
 }
-lambda_cv = cv.glmnet(X,Y, family = "gaussian",intercept=F)$lambda.1se  #We compute the cross validation solution
+results_frame$AIC - min(results_frame$AIC)
+results_frame$AICc - min(results_frame$AICc)
+results_frame$AICc - min(results_frame$AICc)
+
+lambda_cv = cv.glmnet(X,Y, family = "gaussian",intercept=F)$lambda.min  #We compute the cross validation solution
 s <- c(rep(lambda_cv, 1000))  #And fill an axis with it
 axis_lambda_cv <- xy.coords(x=s, y = 1:1000)  #that we will give to the plot
 
@@ -254,28 +285,56 @@ plot.xy(axis_lambda_cv, type = "l") #type = "l" to draw lines
 plot.window(c(0.95*lambda_init, 1.05*lambda ), ylim = c(0.95*min(results_frame$AIC), 1.15*max(results_frame$AIC)))
 plot.xy( list(results_frame$lambda, results_frame$AIC, NULL, NULL), type="p")
 
+plot(x = results_frame$lambda, y = results_frame$AICc, type = "n", xlab = "lambda", ylab = "AICc(theta_lambda)") #type = "n" makes it so that we can add the axis after initialization
+plot.xy(axis_lambda_cv, type = "l") #type = "l" to draw lines
+plot.window(c(0.95*lambda_init, 1.05*lambda ), ylim = c(0.95*min(results_frame$AICc), 1.15*max(results_frame$AICc)))
+plot.xy( list(results_frame$lambda, results_frame$AICc, NULL, NULL), type="p")
+
 
 plot(x = results_frame$lambda, y = results_frame$BIC, type = "n", xlab = "lambda", ylab = "BIC(theta_lambda)") #type = "n" makes it so that we can add the axis after initialization
 plot.xy(axis_lambda_cv, type = "l") #type = "l" to draw lines
 plot.window(c(0.95*lambda_init, 1.05*lambda ), ylim = c(0.95*min(results_frame$BIC), 1.15*max(results_frame$BIC)))
 plot.xy( list(results_frame$lambda, results_frame$BIC, NULL, NULL), type="p")
+
+
+
 ```
 
-We then define the best value for $\lambda$ with respect to AIC as:$$\lambda_{AIC} = argmin_{\lambda_i} AIC.$$
+We then define the best value for $\lambda$ with respect to AIC
+as:$$\lambda_{AIC} = argmin_{\lambda_i} AIC.$$
 
-Hence, for each $i$ we need to compute the likelihood of the model with parameter $\beta_{\lambda_i}$ and $k$ as the number of nonzero coefficients of $\beta_{\lambda_i}$.
-The likelihood, with Gaussianity assumption and covariance matrix $\sigma I$, is given by $$\hat{L_{\lambda_i}} = \Pi_{i=1}^n \frac{1}{\sqrt{2\pi}\sigma}\exp(-\frac{1}{2\sigma^2}(Y_i-\beta)^t(Y_i-\beta)$$.
+Hence, for each $i$ we need to compute the likelihood of the model with
+parameter $\beta_{\lambda_i}$ and $k$ as the number of nonzero coefficients of
+$\beta_{\lambda_i}$. The likelihood, with Gaussianity assumption and covariance
+matrix $\sigma I$, is given by
+$$\hat{L_{\lambda_i}} = \Pi_{i=1}^n \frac{1}{\sqrt{2\pi}\sigma}\exp(-\frac{1}{2\sigma^2}(Y_i-\beta)^t(Y_i-\beta)$$.
 In our setting, we compute $S = \sum_i (Y_i - \beta_\lambda)^2$ and then
-$$L_Y(\lambda) = (2\pi\sigma^2)^{-\frac{n}{2}}\exp(-\frac{1}{2\sigma^2}S)$$
-For each instance of $Y = X\theta^* + \epsilon$ for given parameters $p/n$(dimensionality)$ of $k = s*(p/n)$ (sparsity), while the others are fixed; we obtain lambda_AIC, lambda_CV, lambda_BIC,..... the optimal calibration of lasso for a same problem and a given criterion.
+$$L_Y(\lambda) = (2\pi\sigma^2)^{-\frac{n}{2}}\exp(-\frac{1}{2\sigma^2}S)$$ For
+each instance of $Y = X\theta^* + \epsilon$ for given parameters
+$p/n$(dimensionality)\$ of $k = s*(p/n)$ (sparsity), while the others are fixed;
+we obtain lambda_AIC, lambda_CV, lambda_BIC,..... the optimal calibration of
+lasso for a same problem and a given criterion.
 
-We want to know given the dimensionality and perhaps the sparsity which criterion is optimal. For each instance of $Y=X\theta^*$ we may define $$\lambda_{opt} = Argmin_{\lambda} || X\theta^* - X\hat{\theta}_{\lambda}||_2$$ the "optimal" value of lambda, in the sense that given the solution $\theta^*$ (unknown in practice), we look for the lambda that would give the model with the smallest error (where the argmin could run through all lambdas or only on the one given by our criterions). Note that the choice of definition of $\lambda_{opt}$ is arbitrary, replacing the norm by an $\ell^1, \ell^\infty,\cdots$ can be justified and the argmin could ignore the dependence on $X$.
+We want to know given the dimensionality and perhaps the sparsity which
+criterion is optimal. For each instance of $Y=X\theta^*$ we may define
+$$\lambda_{opt} = Argmin_{\lambda} || X\theta^* - X\hat{\theta}_{\lambda}||_2$$
+the "optimal" value of lambda, in the sense that given the solution $\theta^*$
+(unknown in practice), we look for the lambda that would give the model with the
+smallest error (where the argmin could run through all lambdas or only on the
+one given by our criterions). Note that the choice of definition of
+$\lambda_{opt}$ is arbitrary, replacing the norm by an
+$\ell^1, \ell^\infty,\cdots$ can be justified and the argmin could ignore the
+dependence on $X$.
 
-Idea : modelling $\lambda_{opt}$ as a function of the dimensionality, the sparsity, the different criterions
-Naive idea: Define the norm in the argmin as some sup norm so that $\\hat{lambda}_{opt}$ is the criterion that gives the lambda of the criterion which is closest from sparsity estimate.
-Improved: A nearest-neighbour
-Improved (bis): Model $\hat{\lambda}_{opt}$ as some linear combination of $p/n, s, \lambda_{AIC}, \lambda_{BIC}, \dots$.
-Improved (ter): Model as a polynomial/log linear of $p/n$ and $s$ (and $\lambda_{AIC}, \lambda_{Bic},\cdots$)
+Idea : modelling $\lambda_{opt}$ as a function of the dimensionality, the
+sparsity, the different criterions Naive idea: Define the norm in the argmin as
+some sup norm so that $\\hat{lambda}_{opt}$ is the criterion that gives the
+lambda of the criterion which is closest from sparsity estimate. Improved: A
+nearest-neighbour Improved (bis): Model $\hat{\lambda}_{opt}$ as some linear
+combination of $p/n, s, \lambda_{AIC}, \lambda_{BIC}, \dots$. Improved (ter):
+Model as a polynomial/log linear of $p/n$ and $s$ (and
+$\lambda_{AIC}, \lambda_{Bic},\cdots$)
+
 ```{r}
 ##We fix p, n and k
 #We run M instances of Y = X\theta + eps
@@ -299,6 +358,7 @@ lambda_init <- 0.0 #First value used by lambda
   
 results_short <- data.frame(
   lambda_AIC =c(),
+  lambda_AICc = c(),
   lambda_CV = c(),
   lambda_opt = c(),
   best_criterion = c()
@@ -342,7 +402,8 @@ for(t in 1:N){
       betah = betah,
       k = j,
       negloglikelihood = -log(RSS), 
-      AIC = 2*j + n*log(RSS),
+      AIC = 2*j + n*log(RSS/n),
+      AICc = 2*j + n*log(RSS/n) + 2*j*(j+1)/(n-j-1),
       BIC = j*log(n) + n*log(RSS/n)
     )
     results_frame <- rbind(results_frame, new_row_df)
@@ -363,11 +424,22 @@ for(t in 1:N){
     }
     i<- i + 1
   }
-  
+  esc <-1
+  lambda_min_AICc <- results_frame$AICc[0]
+  min_lambda_AICc <- min(results_frame$AICc)
+  i<-1
+  while (esc != 0 || i < B) {
+    if( min_lambda_AICc >= results_frame$AICc[i]){
+      esc = 0
+      lambda_min_AICc <-results_frame$lambda[i]  #Obtaining the optimal value of lambda for AIC (a faster technique to do that probably exists)
+    }
+    i<- i + 1
+  }
   
   new_row_short_df <- data.frame(
     lambda_AIC = lambda_min_AIC,
-    lambda_CV = cv.glmnet(X,Y, family = "gaussian",intercept=F)$lambda.1se,
+    lambda_AICc = lambda_min_AICc,
+    lambda_CV = cv.glmnet(X,Y, family = "gaussian",intercept=F)$lambda.min,
     lambda_opt = lambda_opt,
     best_criterion = NA
   )
@@ -385,6 +457,7 @@ hist(results_short$best_criterion, main = "Hist of best criterion between CV (0)
 
 
 ```
+
 ```{r}
 ###We wrap the previous code in a function
 #Then we compute for varying $n/p$ whether best is AIC, BIC or CV
@@ -404,6 +477,7 @@ GetLambdaComparison <- function(n = 100,
   if(p < p0 ){##We treat this (impossible) case so that we can obtain dataframes of equal size (for plotting)
     results_short <- data.frame(
       lambda_AIC =NA,
+      lambda_AICc = NA,
       lambda_BIC = NA,
       lambda_CV = NA,
       lambda_opt = NA,
@@ -426,11 +500,13 @@ GetLambdaComparison <- function(n = 100,
     
   results_short <- data.frame(
     lambda_AIC =c(),
+    lambda_AICc = c(),
     lambda_BIC = c(),
     lambda_CV = c(),
     lambda_opt = c(),
     best_criterion = c(),
     res_AIC = c(),
+    res_AICc = c(),
     res_BIC = c(),
     res_CV = c()
   )
@@ -451,6 +527,7 @@ GetLambdaComparison <- function(n = 100,
       k = c(),
       loglikelihood = c(),
       AIC = c(),
+      AICc = c(),
       BIC = c()
     )
     
@@ -458,6 +535,8 @@ GetLambdaComparison <- function(n = 100,
     lambda_opt <- 1
     min_lambda_AIC <- NA
     lambda_AIC <- NA
+    min_lambda_AICc <- NA
+    lambda_AICc <- NA
     min_lambda_BIC <- NA
     lambda_BIC <- NA
     for (b in 1:B){#The increment is lambda
@@ -480,6 +559,7 @@ GetLambdaComparison <- function(n = 100,
         k = j,
         negloglikelihood = -log(RSS), 
         AIC = 2*j + n*log(RSS),
+        AICc = 2*j + n*log(RSS/n) + 2*j*(j+1)/(n-j-1),
         BIC = j*log(n) + n*log(RSS/n)
       )
       results_frame <- rbind(results_frame, new_row_df)
@@ -495,6 +575,11 @@ GetLambdaComparison <- function(n = 100,
         min_lambda_AIC <- new_row_df$AIC
         lambda_AIC <- lambda
       }
+      #And we also search for the best value for lambda under AICc
+      if(min_lambda_AICc > new_row_df$AICc || is.na(min_lambda_AICc)){
+        min_lambda_AICc <- new_row_df$AICc
+        lambda_AICc <- lambda
+      }
       #And we also search for the best value for lambda under BIC
       if(min_lambda_BIC > new_row_df$BIC || is.na(min_lambda_BIC)){
         min_lambda_BIC <- new_row_df$BIC
@@ -507,11 +592,13 @@ GetLambdaComparison <- function(n = 100,
     ##We create a frame in which we store the best values obtained
     new_row_short_df <- data.frame(
       lambda_AIC = lambda_AIC,
+      lambda_AICc = lambda_AICc,
       lambda_BIC = lambda_BIC,
-      lambda_CV = cv.glmnet(X,Y, family = "gaussian",intercept=F)$lambda.1se,
+      lambda_CV = cv.glmnet(X,Y, family = "gaussian",intercept=F)$lambda.min,
       lambda_opt = lambda_opt,
       best_criterion = NA,
-      res_AIC = norm(glmnet(X,Y, family = "gaussian", lambda = lambda_AIC, intercept = F)$beta - glmnet(X,Y, family = "gaussian", lambda = lambda_opt, intercept = F)$beta),
+      res_AIC = norm(glmnet(X,Y, family = "gaussian", lambda = lambda_AIC, intercept = F)$beta - glmnet(X,Y, family = "gaussian", lambda = lambda_opt, intercept = F)$beta),      
+      res_AICc = norm(glmnet(X,Y, family = "gaussian", lambda = lambda_AICc, intercept = F)$beta - glmnet(X,Y, family = "gaussian", lambda = lambda_opt, intercept = F)$beta),
       res_BIC = norm(glmnet(X,Y, family = "gaussian", lambda = lambda_BIC, intercept = F)$beta - glmnet(X,Y, family = "gaussian", lambda = lambda_opt, intercept = F)$beta),
       res_CV = NA
     )
@@ -542,7 +629,7 @@ GetLambdaComparison <- function(n = 100,
 ```{r}
 
 n <- 100
-prange<- (0:20)*10
+prange<- (0:40)*5
 ratio_best_AIC = c(rep(0,length(prange)))
 ratio_best_BIC = c(rep(0,length(prange)))
 ratio_best_CV = c(rep(0,length(prange)))
@@ -563,15 +650,17 @@ for(s in 1:length(prange)){
     num_AIC_best = sum(results_lambda$best_criterion == 1),
     num_CV_best = sum(results_lambda$best_criterion == 0),
     num_BIC_best = sum(results_lambda$best_criterion == 2),
-    err_AIC = sum(results_lambda$res_AIC),
-    err_BIC = sum(results_lambda$res_BIC),
-    err_CV = sum(results_lambda$res_CV)
+    err_AIC = mean(results_lambda$res_AIC, na.rm = TRUE),
+    err_AICc = mean(results_lambda$res_AICc, na.rm = TRUE),
+    err_BIC = mean(results_lambda$res_BIC, na.rm = TRUE),
+    err_CV = mean(results_lambda$res_CV, na.rm = TRUE)
   )
 
     ratio_best_AIC[s] <- new_row_result_var_np$num_AIC_best / (new_row_result_var_np$num_CV_best + new_row_result_var_np$num_AIC_best + new_row_result_var_np$num_BIC_best)
   ratio_best_BIC[s] <- new_row_result_var_np$num_BIC_best / (new_row_result_var_np$num_CV_best + new_row_result_var_np$num_AIC_best + new_row_result_var_np$num_BIC_best)
   ratio_best_CV[s] <- new_row_result_var_np$num_CV_best / (new_row_result_var_np$num_CV_best + new_row_result_var_np$num_AIC_best + new_row_result_var_np$num_BIC_best)
-  print(s)
+ 
+   print(s)
   
   result_var_np <- rbind(result_var_np, new_row_result_var_np)
 }
@@ -584,16 +673,19 @@ plot(ratio_best_AIC, x=prange, main = "performance of AIC compared to others", y
 plot(ratio_best_BIC, x = prange, main = "performance of BIC compared to others", ylab = "Avg number of times when BIC is best", xlab = "p")
 plot(ratio_best_CV, x = prange, main = "performance of CV compared to others", ylab = "Avg number of times when CV is best", xlab = "p")
 
-plot(result_var_np$err_AIC, x = prange, main = "Avg l2 error of AIC", ylab = "Avg error", xlab = "p")
-plot(result_var_np$err_BIC, x = prange, main = "Avg l2 error of BIC", ylab = "Avg error", xlab = "p")
-plot(result_var_np$err_CV, x = prange, main = "Avg l2 error of CV", ylab = "Avg error", xlab = "p")
+plot(result_var_np$err_AIC, x = prange, main = "Avg l2 error", ylab = "Avg error", xlab = "p", type = "b")
+points(result_var_np$err_BIC, x = prange, type = "b", col ="red")
+points(result_var_np$err_CV, x = prange, type = "b", col = "green")
+points(y=result_var_np$err_AICc, x = prange, type = "b", col="yellow")
 
+legend(x="topright", legend=c("AIC", "BIC", "CV", "AICc"), fill=c("skyblue", "red", "green", "yellow"))
 
 ```
 
 
+We now compute, depending on n/p and k (the number of nonzero coefficient) the
+performance of AIC, BIC and CV.
 
-We now plot, depending on n/p and k (the number of nonzero coefficient) the performance of AIC, BIC and CV.
 ```{r}
 ##We wrap the previous code in a function to get, for fixed n and a fixed sparsity level k/n, the results when we vary p
 #Then we will vary k between some values and then display the results
@@ -633,7 +725,10 @@ CompareCriterionVarNP <- function(
       num_AIC_best = sum(results_lambda$best_criterion == 1),
       num_CV_best = sum(results_lambda$best_criterion == 0),
       num_BIC_best = sum(results_lambda$best_criterion == 2),
-      err_AIC = sum(results_lambda$res_AIC)
+      err_AIC = mean(results_lambda$res_AIC),
+      err_AICc = mean(results_lambda$res_AICc),
+      err_BIC = mean(results_lambda$res_BIC),
+      err_CV = mean(results_lambda$res_CV)
     )
     result_var_np <- rbind(result_var_np, new_row_result_var_np)
 
@@ -641,7 +736,6 @@ CompareCriterionVarNP <- function(
   return(result_var_np)
 }
 ```
-
 
 ```{r}
 n<-100
@@ -651,7 +745,7 @@ results_glob = data.frame(
 )
 krange = c(5, 10, 20, 30, 40, 50)
 prange = c(5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200)
-N = 30
+N = 20
 for(k in krange){
   
   new_row = data.frame(
@@ -673,19 +767,35 @@ y = krange
 print(length(x)*length(y))
 z = matrix(data = results_glob$comp_criterion.num_AIC_best, nrow = length(x), ncol = length(y))
 persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "p", col="skyblue", type = "n")
-z = matrix(data = results_glob$comp_criterion.num_BIC_best, nrow = length(y), ncol = length(x))
+z = matrix(data = results_glob$comp_criterion.num_BIC_best, nrow = length(x), ncol = length(y))
 persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "p", col="red", type = "n", add = TRUE)
-z = matrix(data = results_glob$comp_criterion.num_CV_best, nrow = length(y), ncol = length(x))
+z = matrix(data = results_glob$comp_criterion.num_CV_best, nrow = length(x), ncol = length(y))
 persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "p",  col="green", add = TRUE)
 rgl.snapshot("comp_all_crits.png")
+```
+
+```{r}
+
+z = matrix(data = results_glob$comp_criterion.err_AIC, nrow = length(x), ncol = length(y))
+persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "p", col="skyblue", type = "n")
+z = matrix(data = results_glob$comp_criterion.err_AICc, nrow = length(x), ncol = length(y))
+persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "p", col="yellow", type = "n", add = TRUE)
+z = matrix(data = results_glob$comp_criterion.err_BIC, nrow = length(x), ncol = length(y))
+persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "p",  col="red", add = TRUE)
+z = matrix(data = results_glob$comp_criterion.err_CV, nrow = length(x), ncol = length(y))
+persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "p",  col="green", add = TRUE)
+rgl.snapshot("comp_all_crits_error.png")
 
 ```
-![Comparison of which criterion gives the lambda closest to best lambda for varying dimensionality and sparsity](comp_all_crits.png)
 
-From this graph ( $n = 50, p \in [5, 100], p_0 \in [5, 50]$ ) we have that AIC outperforms clearly both CV and BIC in the large $p$, large $p_0$ area (high-dimension, low sparsity). In the low-dimensionality, high sparsity area (my guess : $p_0 < p/2$) all criterions have a similar performance. 
+![Comparison of which criterion gives the lambda closest to best lambda for varying dimensionality and sparsity (higher is better)](comp_all_crits.png)
 
 
-Now, instead of comparing among criterions which one gives the closest lambda to the best (knowing the true solution) lambda, we want to compare for each criterion which ones give the right model dimension.
+![Comparison of prediction error for varying dimensionality and sparsity (lower is better)](comp_all_crits_error.png)
+
+Now, instead of comparing among criterions which one gives the closest lambda to
+the best (knowing the true solution) lambda, we want to compare for each
+criterion which ones give the right model dimension.
 
 ```{r}
 GetDimComparison <- function(n = 100,
@@ -778,7 +888,7 @@ GetDimComparison <- function(n = 100,
       }
       lambda <- lambda+lambda_step
     }
-    lambda_CV = cv.glmnet(X,Y, family = "gaussian",intercept=F)$lambda.1se
+    lambda_CV = cv.glmnet(X,Y, family = "gaussian",intercept=F)$lambda.min
     
     #We compute for each optimal lambda the corresponding solution beta
     Beta_AIC = glmnet(X, Y, family = "gaussian", intercept=F, lambda = lambda_AIC)$beta
@@ -787,9 +897,9 @@ GetDimComparison <- function(n = 100,
    
     #For each beta we compute its dimension
     new_row_results_dim <- data.frame(
-      AIC_dim = sum(Beta_AIC != 0),
-      BIC_dim = sum(Beta_BIC != 0),
-      CV_dim = sum(Beta_CV != 0),
+      AIC_dim = length(Beta_AIC@i),
+      BIC_dim = length(Beta_BIC@i),
+      CV_dim = length(Beta_CV@i),
       true_dim = p0
     )
     results_dim <- rbind(results_dim, new_row_results_dim)
@@ -797,21 +907,31 @@ GetDimComparison <- function(n = 100,
   return(results_dim)
 }
 
+```
 
-dim_compare = GetDimComparison(N = 1000, n = 100, p = 10, p0 = 5)
+```{r}
+
+dim_compare = GetDimComparison(N = 50, n = 100, p = 100, p0 = 5)
 
 ```
+
 ```{r}
 hist(dim_compare$AIC_dim, breaks = 0:100 +0.5, freq = FALSE)
 hist(dim_compare$BIC_dim, breaks =0:100+0.5, freq = FALSE)
 hist(dim_compare$CV_dim, breaks =0:100 +0.5, freq = FALSE)
 
 ```
-We obtain from previous plots (with e.g. N=100, p=10 or p =100) that CV is the best criterion to obtain the right model dimension. Also BIC performs better than AIC for dimension identification, however in a high dimensional setting, the performance of BIC is quite low.
-In order to back this claim, we do as before and display for varying $n/p$ the dimension of the models identified by the different criterions.
 
+We obtain from previous plots (with e.g. N=100, p=10 or p =100) that CV is the
+best criterion to obtain the right model dimension. Also BIC performs better
+than AIC for dimension identification, however in a high dimensional setting,
+the performance of BIC is quite low. In order to back this claim, we do as
+before and display for varying $n/p$ the dimension of the models identified by
+the different criterions.
 
-We now plot, depending on n/p and k (the number of nonzero coefficient) the performance (avg model dimension) of AIC, BIC and CV.
+We now plot, depending on n/p and k (the number of nonzero coefficient) the
+performance (avg model dimension) of AIC, BIC and CV.
+
 ```{r}
 ##We wrap the previous code in a function to get, for fixed n and a fixed sparsity level k/n, the results when we vary p
 #Then we will vary k between some values and then display the results
@@ -845,9 +965,9 @@ CompareDimCriterionVarNP <- function(
     results_dim <- GetDimComparison(n=n, p = prange[s], B = B, N= N, p0 = p0, sigma = sigma, sigmaX = sigmaX, b0 = b0, lambda_step = lambda_step, lambda_init = lambda_init)
     new_row_result_dim_var_np = data.frame(
       p = prange[s],
-      dim_AIC = sum(results_dim$AIC_dim)/N,
-      dim_BIC = sum(results_dim$BIC_dim)/N,
-      dim_CV = sum(results_dim$CV_dim)/N,
+      dim_AIC = mean(results_dim$AIC_dim, na.rm=TRUE),
+      dim_BIC = mean(results_dim$BIC_dim, na.rm=TRUE),
+      dim_CV = mean(results_dim$CV_dim, na.rm=TRUE),
       dim_true = p0
     )
     result_dim_var_np <- rbind(result_dim_var_np, new_row_result_dim_var_np)
@@ -857,6 +977,33 @@ CompareDimCriterionVarNP <- function(
   return(result_dim_var_np)
 }
 ```
+
+We compute estimated dimension with fixed n,p,sigma^2 for varying p_0
+```{r}
+krange = 1:25
+dim_AIC_k = c(rep(0,length(krange)))
+dim_BIC_k = c(rep(0,length(krange)))
+dim_CV_k = c(rep(0,length(krange)))
+dim_true_k = krange
+
+for(i in 1:length(krange)){
+  new_row_var_spars <- GetDimComparison(n=100, p = 25, B = 50, N= 30, p0 = krange[i])
+  dim_AIC_k[i] = mean(new_row_var_spars$AIC_dim, na.rm=TRUE)
+  dim_BIC_k[i] = mean(new_row_var_spars$BIC_dim, na.rm=TRUE)
+  dim_CV_k[i] = mean(new_row_var_spars$CV_dim, na.rm=TRUE)
+}
+
+
+```
+```{r}
+plot(y=dim_AIC_k, x=krange, xlab="p_0", ylab="estimated dimension", ylim = c(0,25), col = "skyblue", type="b")
+points(y=dim_BIC_k, x=krange, xlab="p_0", ylab="estimated dimension", col = "red", type="b")
+points(y=dim_CV_k, x=krange, xlab="p_0", ylab="estimated dimension", col = "green", type="b")
+points(y=dim_true_k, x=krange, xlab="p_0", ylab="estimated dimension", col = "purple", type="b")
+legend(x="topright", legend=c("AIC", "BIC", "CV", "true"), fill=c("skyblue", "red", "green", "purple"))
+
+```
+
 
 ```{r}
 
@@ -878,31 +1025,39 @@ for(k in krange){
   ) 
   results_dim_glob <- rbind(results_dim_glob, new_row_dim)
   print(k)
-}  
+}
 ```
 
 And we plot the results
+
 ```{r}
 ##Here we do the plotting 
 print(length(results_dim_glob$comp_criterion.dim_CV))
-x = krange
-y = prange
+y = krange
+x = prange
 
 print(length(x)*length(y))
-z = matrix(data = results_dim_glob$comp_criterion.dim_AIC, nrow = length(y), ncol = length(x))
-persp3d(x=y, y=x,z=z, ylab = "number of nonzero coefs", xlab = "p", col="skyblue", type = "n")
-z = matrix(data = results_dim_glob$comp_criterion.dim_BIC, nrow = length(y), ncol = length(x))
-persp3d(x=y, y=x,z=z, ylab = "number of nonzero coefs", xlab = "p", col="red", type = "n", add = TRUE)
-z = matrix(data = results_dim_glob$comp_criterion.dim_CV, nrow = length(y), ncol = length(x))
-persp3d(x=y, y=x,z=z, ylab = "number of nonzero coefs", xlab = "p",  col="green", add = TRUE)
-z = matrix(data = results_dim_glob$comp_criterion.dim_true, nrow = length(y), ncol = length(x))
-persp3d(x=y, y=x,z=z, ylab = "number of nonzero coefs", xlab = "p",  col="purple", add = TRUE)
+z = matrix(data = results_dim_glob$comp_criterion.dim_AIC, nrow = length(x), ncol = length(y))
+persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "p", col="skyblue", type = "n")
+z = matrix(data = results_dim_glob$comp_criterion.dim_BIC, nrow = length(x), ncol = length(y))
+persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "p", col="red", type = "n", add = TRUE)
+z = matrix(data = results_dim_glob$comp_criterion.dim_CV, nrow = length(x), ncol = length(y))
+persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "p",  col="green", add = TRUE)
+z = matrix(data = results_dim_glob$comp_criterion.dim_true, nrow = length(x), ncol = length(y))
+persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "p",  col="purple", add = TRUE)
 rgl.snapshot("comp_all_crits_dim.png")
 ```
-![Comparison of the dimension identified depending on dimensionality and sparsity](comp_all_crits_dim.png)
-We can observe that when $p=p0$, then all criterions perform equally. This probably comes from (TODO : check and add details) the fact when the sparsity of the input vector is constant and $p=p0$, hence AIC and BIC can be proved equivalent. Also, in the Gaussian case this certainly amounts to solving a least square to find the CV solution which is the same as for AIC or BIC.
 
-We can also take a closer look at what happens in the sparse low dimensional area:
+![Comparison of the dimension identified depending on dimensionality and
+sparsity](comp_all_crits_dim.png) We can observe that when $p=p0$, then all
+criterions perform equally. This probably comes from (TODO : check and add
+details) the fact when the sparsity of the input vector is constant and $p=p0$,
+hence AIC and BIC can be proved equivalent. Also, in the Gaussian case this
+certainly amounts to solving a least square to find the CV solution which is the
+same as for AIC or BIC.
+
+We can also take a closer look at what happens in the sparse low dimensional
+area:
 
 ```{r}
 results_dim_glob = data.frame(
@@ -924,6 +1079,7 @@ for(k in krange){
   print(k)
 }
 ```
+
 ```{r}
 ##Here we do the plotting 
 print(length(results_dim_glob$comp_criterion.dim_CV))
@@ -942,13 +1098,17 @@ persp3d(x=y, y=x,z=z, ylab = "number of nonzero coefs", xlab = "p",  col="purple
 rgl.snapshot("comp_all_crits_low_dim_sparse.png")
 ```
 
- ![Comparison of the dimension identified depending on dimensionality and sparsity for sparse low dimension](comp_all_crits_low_dim_sparse.png)
+![Comparison of the dimension identified depending on dimensionality and
+sparsity for sparse low dimension](comp_all_crits_low_dim_sparse.png)
 
 #Influence of noise
 
-We are now left with having to measure the influence of the noise. In order to do that we will plot graphs of dimensionality identified (or distance w.r.t true $\lambda$) where the parameters are $(\sigma, n/p)$ or $(\sigma, k)$.
-#Dimensionality
-We compute dimension of the estimated model w.r.t to criterions for varying $sigma$ and $k$
+We are now left with having to measure the influence of the noise. In order to
+do that we will plot graphs of dimensionality identified (or distance w.r.t true
+$\lambda$) where the parameters are $(\sigma, n/p)$ or $(\sigma, k)$.
+#Dimensionality We compute dimension of the estimated model w.r.t to criterions
+for varying $sigma$ and $k$
+
 ```{r}
 CompareDimCriterionVarSigma <- function(
                                 n = 100,
@@ -974,9 +1134,9 @@ CompareDimCriterionVarSigma <- function(
     results_dim_sigma <- GetDimComparison(n=n, p = p, sigma = s, B = B, N= N, p0 = p0, sigmaX = sigmaX, b0 = b0, lambda_step = lambda_step, lambda_init = lambda_init)
     new_row_result_dim_var_sigma = data.frame(
       sigma = s,
-      dim_AIC = sum(results_dim_sigma$AIC_dim)/N,
-      dim_BIC = sum(results_dim_sigma$BIC_dim)/N,
-      dim_CV = sum(results_dim_sigma$CV_dim)/N,
+      dim_AIC = mean(results_dim_sigma$AIC_dim, na.rm=TRUE),
+      dim_BIC = mean(results_dim_sigma$BIC_dim, na.rm=TRUE),
+      dim_CV = mean(results_dim_sigma$CV_dim, na.rm=TRUE),
       dim_true = p0
     )
     result_dim_var_sigma <- rbind(result_dim_var_sigma, new_row_result_dim_var_sigma)
@@ -986,6 +1146,29 @@ CompareDimCriterionVarSigma <- function(
   return(result_dim_var_sigma)
 }
 ```
+
+We compute for varying $\sigma^2$, fixed $p_0 = 5$ the dimension estimated
+```{r}
+sigmarange = c(0.0, 0.5, 1.0, 1.50, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0)
+varSigmaLowDim= CompareDimCriterionVarSigma(n = 100, p = 10, p0 = 5, N = 50, B = 50, sigmarange = sigmarange) 
+varSigmaHighDim= CompareDimCriterionVarSigma(n = 100, p = 200, p0 = 5, N = 50, B = 50, sigmarange = sigmarange) 
+```
+And we plot
+```{r}
+plot(y=varSigmaLowDim$dim_AIC, x=sigmarange, xlab="sigma2", ylab="estimated dimension", ylim = c(0,10), col = "skyblue", type="b")
+points(y=varSigmaLowDim$dim_BIC, x=sigmarange, xlab="sigma2", ylab="estimated dimension", col = "red", type="b")
+points(y=varSigmaLowDim$dim_CV, x=sigmarange, xlab="sigma2", ylab="estimated dimension", col = "green", type="b")
+points(y=varSigmaLowDim$dim_true, x=sigmarange, xlab="sigma2", ylab="estimated dimension", col = "purple", type="p")
+legend(x="topright", legend=c("AIC", "BIC", "CV", "true"), fill=c("skyblue", "red", "green", "purple"))
+
+plot(y=varSigmaHighDim$dim_AIC, x=sigmarange, xlab="sigma2", ylab="estimated dimension", ylim = c(0,200), col = "skyblue", type="b")
+points(y=varSigmaHighDim$dim_BIC, x=sigmarange, xlab="sigma2", ylab="estimated dimension", col = "red", type="b")
+points(y=varSigmaHighDim$dim_CV, x=sigmarange, xlab="sigma2", ylab="estimated dimension", col = "green", type="b")
+points(y=varSigmaHighDim$dim_true, x=sigmarange, xlab="sigma2", ylab="estimated dimension", col = "purple", type="p")
+legend(x="topright", legend=c("AIC", "BIC", "CV", "true"), fill=c("skyblue", "red", "green", "purple"))
+
+```
+
 
 ```{r}
 n<-50
@@ -1006,7 +1189,9 @@ for(k in krange){
   print(k)
 } 
 ```
+
 And we plot the results
+
 ```{r}
 print(length(results_dim_glob_sigma$comp_criterion.dim_CV))
 y = krange
@@ -1022,14 +1207,17 @@ z = matrix(data = results_dim_glob_sigma$comp_criterion.dim_true, nrow = length(
 persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "noise (sigma)",  col="purple", add = TRUE)
 rgl.snapshot("comp_all_crits_dim_var_sigma_high_dim.png")
 ```
-![Comparison of dimension estimated for criterions with varying noise and sparsity in a high-dimension setting](comp_all_crits_dim_var_sigma_low_dim.png)
-We can make several observations from the plot in a low-dimension setting (for n = 50, p = 100, sigmarange = [0,5] ) :
-1) All criterions overfit (include too many parameters) the data. CV is the best among three as it consistently identifies a dimension between 2 and 3 times the true dimension.
-2) There is a cliff given by some $\sigma_i = \phi_i(p_0)$  AIC and BIC perform nearly no dimension reduction (BIC makes dimension reduction soon) which is for small noise (!)
-3) In a situation without noise CV is the best, when noise is quite large BIC performs equivalently to CV (but is faster)
 
-
-
+![Comparison of dimension estimated for criterions with varying noise and
+sparsity in a high-dimension setting](comp_all_crits_dim_var_sigma_low_dim.png)
+We can make several observations from the plot in a low-dimension setting (for n
+= 50, p = 100, sigmarange = \[0,5\] ) : 1) All criterions overfit (include too
+many parameters) the data. CV is the best among three as it consistently
+identifies a dimension between 2 and 3 times the true dimension. 2) There is a
+cliff given by some $\sigma_i = \phi_i(p_0)$ AIC and BIC perform nearly no
+dimension reduction (BIC makes dimension reduction soon) which is for small
+noise (!) 3) In a situation without noise CV is the best, when noise is quite
+large BIC performs equivalently to CV (but is faster)
 
 ```{r}
 n<-100
@@ -1066,12 +1254,14 @@ z = matrix(data = results_dim_glob_sigma$comp_criterion.dim_true, nrow = length(
 persp3d(x=x, y=y,z=z, ylab = "number of nonzero coefs", xlab = "noise (sigma)",  col="purple", add = TRUE)
 rgl.snapshot("comp_all_crits_dim_var_sigma_low_dim.png")
 ```
-![Comparison of dimension estimated for criterions with varying noise and sparsity in a low dimension setting](comp_all_crits_dim_var_sigma_low_dim.png)
-We can make several observations from the plot (for n = 50, p = 100, sigmarange = [0,5] ) :
 
-
+![Comparison of dimension estimated for criterions with varying noise and
+sparsity in a low dimension setting](comp_all_crits_dim_var_sigma_low_dim.png)
+We can make several observations from the plot (for n = 50, p = 100, sigmarange
+= \[0,5\] ) :
 
 #Closeness to $lambda_{opt}$
+
 ```{r}
 
 n<-50
@@ -1105,13 +1295,22 @@ persp3d(x=x, y=y,z=z, xlab = "dimensionality (p)", ylab = "noise (sigma)",  col=
 rgl.snapshot("comp_all_crits_var_sigma_p.png")
 
 ```
-![Comparison of criterion with varying noise and dimensionality](comp_all_crits_var_sigma_p.png)
-At the moment, this graph makes not much sense. It might be better to plot something like $\ell^2$ distance between $\beta_{\lambda_{crit}}$ and $\beta^*$.
+
+![Comparison of criterion with varying noise and
+dimensionality](comp_all_crits_var_sigma_p.png) At the moment, this graph makes
+not much sense. It might be better to plot something like $\ell^2$ distance
+between $\beta_{\lambda_{crit}}$ and $\beta^*$.
 
 # Overview of the project
 
-You will first implement the cross validation and the BIC to calibrate the Lasso numerically in the regression setting. Then you will study the statistical properties of the lasso in terms of model selection in different simulation setting (high signal / high noise, low dimensional / high dimensional). You will compete CV, the AIC, and the BIC in order to determine if one procedure is more accurate than the other. 
+You will first implement the cross validation and the BIC to calibrate the Lasso
+numerically in the regression setting. Then you will study the statistical
+properties of the lasso in terms of model selection in different simulation
+setting (high signal / high noise, low dimensional / high dimensional). You will
+compete CV, the AIC, and the BIC in order to determine if one procedure is more
+accurate than the other.
 
 # Reference
 
-Trevor Hastie, Robert Tibshirani, Jerome Friedman, The Elements of Statistical Learning: Data Mining, Inference, and Prediction. Second Edition, Springer, 2009
+Trevor Hastie, Robert Tibshirani, Jerome Friedman, The Elements of Statistical
+Learning: Data Mining, Inference, and Prediction. Second Edition, Springer, 2009
